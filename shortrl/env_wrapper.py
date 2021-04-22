@@ -1,5 +1,6 @@
 import gym
 import torch
+import numpy as np
 
 class ShortMDP(gym.Wrapper):
     """Short-RL wrapper for gym.Env.
@@ -20,5 +21,5 @@ class ShortMDP(gym.Wrapper):
         """gym.Env step function."""
         obs, reward, done, info = self.env.step(action)
         if not done:
-            reward += (1-self._lambd) * self._gamma * self._heuristic(obs)
+            reward += (1-self._lambd) * self._gamma * self._heuristic(np.array([obs]))
         return obs, reward, done, info

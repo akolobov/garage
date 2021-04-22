@@ -26,7 +26,7 @@ def torch_value_wrapper(torch_value):
     return wrapped_fun
 
 # Before running this, make sure to run `python -m shortrl.ppo_pendulum_train_heuristics.py`
-@wrap_experiment(prefix='experiment/shortrl/agents/', snapshot_mode='last')
+@wrap_experiment(prefix='experiment/shortrl/agents', snapshot_mode='last')
 def ppo_pendulum(ctxt=None, seed=1):
     """Train PPO with InvertedDoublePendulum-v2 environment.
 
@@ -72,6 +72,6 @@ def ppo_pendulum(ctxt=None, seed=1):
                center_adv=False)
 
     trainer.setup(algo, env)
-    trainer.train(n_epochs=100, batch_size=10000)
+    trainer.train(n_epochs=50, batch_size=10000)
 
 ppo_pendulum(seed=1)
