@@ -20,7 +20,5 @@ class ShortMDP(gym.Wrapper):
         """gym.Env step function."""
         obs, reward, done, info = self.env.step(action)
         if not done:
-            with torch.no_grad():
-                # BUG: We need to package "obs" correctly (the way the value function object expects it to be packaged...)
-                reward += (1-self._lambd) * self._gamma * self._heuristic(torch.Tensor(obs))
+            reward += (1-self._lambd) * self._gamma * self._heuristic(obs)
         return obs, reward, done, info
