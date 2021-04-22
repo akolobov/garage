@@ -273,3 +273,38 @@ def log_performance(itr, batch, discount, prefix='Evaluation'):
             tabular.record('SuccessRate', np.mean(success))
 
     return undiscounted_returns
+
+
+def log_orig_performance(itr, batch, discount, prefix='Evaluation'):
+    """Evaluate the performance of an algorithm on a batch of episodes in terms of the *original* reward.
+
+    Args:
+        itr (int): Iteration number.
+        batch (EpisodeBatch): The episodes to evaluate with.
+        discount (float): Discount value, from algorithm's property.
+        prefix (str): Prefix to add to all logged keys.
+
+    Returns:
+        numpy.ndarray: Undiscounted returns.
+
+    """
+    returns = []
+    undiscounted_returns = []
+    termination = []
+    success = []
+    for eps in batch.split():
+        rewards = eps.env_infos['orig_reward']
+        returns.append(discount_cumsum(rewards, discount))
+        undiscounted_returns.append(sum(rewards))
+
+    average_discounted_return = np.mean([rtn[0] for rtn in returns])
+
+    with tabular.prefix(prefix + '/'):
+        tabular.record('AverageDiscountedORIGINALReturn', average_discounted_return)
+        tabular.record('AverageORIGINALReturn', np.mean(undiscounted_returns))
+        tabular.record('StdORIGINALReturn', np.std(undiscounted_returns))
+        tabular.record('MaxORIGINALReturn', np.max(undiscounted_returns))
+        tabular.record('MinORIGINALReturn', np.min(undiscounted_returns))
+
+    return undiscounted_returns
+

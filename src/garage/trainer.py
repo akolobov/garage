@@ -10,6 +10,7 @@ from dowel import logger, tabular
 from garage.experiment.deterministic import get_seed, set_seed
 from garage.experiment.experiment import dump_json
 from garage.experiment.snapshotter import Snapshotter
+from garage._functions import log_orig_performance
 
 # pylint: disable=no-name-in-module
 
@@ -226,6 +227,7 @@ class Trainer:
             agent_update=agent_update,
             env_update=env_update)
         self._stats.total_env_steps += sum(episodes.lengths)
+        log_orig_performance(itr, episodes, self._algo._discount, prefix='Evaluation')
         return episodes
 
     def obtain_samples(self,
