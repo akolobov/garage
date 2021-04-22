@@ -292,6 +292,10 @@ def log_orig_performance(itr, batch, discount, prefix='Evaluation'):
     undiscounted_returns = []
     termination = []
     success = []
+
+    if 'orig_reward' not in batch.env_infos:
+        return
+
     for eps in batch.split():
         rewards = eps.env_infos['orig_reward']
         returns.append(discount_cumsum(rewards, discount))
@@ -307,4 +311,3 @@ def log_orig_performance(itr, batch, discount, prefix='Evaluation'):
         tabular.record('MinORIGINALReturn', np.min(undiscounted_returns))
 
     return undiscounted_returns
-
