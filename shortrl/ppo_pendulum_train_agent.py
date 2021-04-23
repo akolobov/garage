@@ -62,6 +62,7 @@ def ppo_pendulum(ctxt=None, seed=1, lambd=0.9):
     sampler = RaySampler(agents=policy,
                          envs=env,
                          max_episode_length=env.spec.max_episode_length)
+                         # n_workers = 48)
 
     algo = PPO(env_spec=env.spec,
                policy=policy,
