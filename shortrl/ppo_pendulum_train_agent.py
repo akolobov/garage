@@ -91,9 +91,12 @@ if __name__ == '__main__':
                     prefix='experiment/shortrl/agents',
                     snapshot_mode='last',
                     name='ppo_pendulum_{}_{}'.format(lambd, seed))
-    ppo_pendulum(seed=seed, lambd=lambd)
 
 else:
+    lambd = 0.9
+    seed = 1
     ppo_pendulum = wrap_experiment(ppo_pendulum,
                     prefix='experiment/shortrl/agents',
                     snapshot_mode='last')
+
+ppo_pendulum(seed=seed, lambd=lambd)
