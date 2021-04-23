@@ -26,8 +26,7 @@ def torch_value_wrapper(torch_value):
     return wrapped_fun
 
 # Before running this, make sure to run `python -m shortrl.ppo_pendulum_train_heuristics.py`
-@wrap_experiment(prefix='experiment/shortrl/agents', snapshot_mode='last')
-def ppo_pendulum(ctxt=None, seed=1):
+def ppo_pendulum(ctxt=None, seed=1, lambd=0.9):
     """Train PPO with InvertedDoublePendulum-v2 environment.
 
     Args:
@@ -44,7 +43,6 @@ def ppo_pendulum(ctxt=None, seed=1):
     discount = data['algo']._discount
 
     set_seed(seed)
-    lambd = 0.9
     # Wrap the gym env into our *gym* wrapper first and then into the standard garage wrapper.
     env = ShortMDP(gym.make('InvertedDoublePendulum-v2'), heuristic, lambd=lambd, gamma=discount)
     env = GymEnv(env)
@@ -75,4 +73,26 @@ def ppo_pendulum(ctxt=None, seed=1):
     trainer.setup(algo, env, lambd)
     trainer.train(n_epochs=50, batch_size=10000)
 
-ppo_pendulum(seed=1)
+
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-l', '--lambd', type=float, default=0.9)
+    parser.add_argument('-d', '--seed', type=int, default=1)
+    args = parser.parse_args()
+
+    name = 'ppo_pendulum'
+    lambd = args.lambd
+    seed = args.seed
+
+    ppo_pendulum = wrap_experiment(ppo_pendulum,
+                    prefix='experiment/shortrl/agents',
+                    snapshot_mode='last',
+                    name='ppo_pendulum_{}_{}'.format(lambd, seed))
+    ppo_pendulum(seed=seed, lambd=lambd)
+
+else:
+    ppo_pendulum = wrap_experiment(ppo_pendulum,
+                    prefix='experiment/shortrl/agents',
+                    snapshot_mode='last')
