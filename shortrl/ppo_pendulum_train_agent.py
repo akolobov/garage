@@ -44,8 +44,9 @@ def ppo_pendulum(ctxt=None, seed=1):
     discount = data['algo']._discount
 
     set_seed(seed)
+    lambd = 0.9
     # Wrap the gym env into our *gym* wrapper first and then into the standard garage wrapper.
-    env = ShortMDP(gym.make('InvertedDoublePendulum-v2'), heuristic, lambd=0.5, gamma=discount)
+    env = ShortMDP(gym.make('InvertedDoublePendulum-v2'), heuristic, lambd=lambd, gamma=discount)
     env = GymEnv(env)
 
     trainer = Trainer(ctxt)
@@ -68,10 +69,10 @@ def ppo_pendulum(ctxt=None, seed=1):
                policy=policy,
                value_function=value_function,
                sampler=sampler,
-               discount=discount,
+               discount=lambd*discount,
                center_adv=False)
 
-    trainer.setup(algo, env)
+    trainer.setup(algo, env, lambd)
     trainer.train(n_epochs=50, batch_size=10000)
 
 ppo_pendulum(seed=1)
