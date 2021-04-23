@@ -80,7 +80,7 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('-l', '--lambd', type=float, default=0.9)
-    parser.add_argument('-d', '--seed', type=int, default=1)
+    parser.add_argument('-s', '--seed', type=int, default=1)
     args = parser.parse_args()
 
     name = 'ppo_pendulum'
