@@ -46,7 +46,7 @@ def train_agent(ctxt=None,
 
 # Run this.
 def run_exp(exp_name=None,
-            snapshot_frequency=0,
+            snapshot_frequency=1,
             log_prefix='agents',
             **kwargs):
     snapshot_gap = snapshot_frequency
@@ -72,7 +72,7 @@ if __name__ == '__main__':
     parser.add_argument('-e', '--env_name', type=str, default='InvertedDoublePendulum-v2')
     parser.add_argument('-n', '--n_workers', type=int, default=4)
     parser.add_argument('-u', '--use_heuristic', type=str2bool, default=True)
-    parser.add_argument('-f', '--snapshot_frequency', type=int, default=0)
+    parser.add_argument('-f', '--snapshot_frequency', type=int, default=1)
     parser.add_argument('-N', '--n_epochs', type=int, default=50)
     parser.add_argument('-b', '--batch_size', type=int, default=10000)
     parser.add_argument('--log_prefix', type=str, default='agents')
@@ -86,8 +86,8 @@ if __name__ == '__main__':
     algo_kwargs={'n_workers':args.n_workers}
     use_heuristic = args.use_heuristic
     heuristic = get_snapshot_values(
-                'data/local/experiment/shortrl/heuristics/ppo_pendulum/',
-                itr=19) if use_heuristic else None
+                'data/local/experiment/shortrl/heuristics/PPO_Inver_0.99_False_1/',
+                itr=30) if use_heuristic else None
     snapshot_frequency = args.snapshot_frequency
     n_epochs = args.n_epochs
     batch_size = args.batch_size
