@@ -228,7 +228,7 @@ class Trainer:
             agent_update=agent_update,
             env_update=env_update)
         self._stats.total_env_steps += sum(episodes.lengths)
-        log_orig_performance(itr, episodes, self._algo._discount / (max(self._lambd,1e-5)), prefix='Evaluation')
+        # log_orig_performance(itr, episodes, self._algo._discount / (max(self._lambd,1e-5)), prefix='Evaluation')
         return episodes
 
     def obtain_samples(self,

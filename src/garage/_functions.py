@@ -272,6 +272,10 @@ def log_performance(itr, batch, discount, prefix='Evaluation'):
         if success:
             tabular.record('SuccessRate', np.mean(success))
 
+
+    # LOG original performance too
+    log_orig_performance(itr, batch, discount, prefix='Evaluation')
+
     return undiscounted_returns
 
 
