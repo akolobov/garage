@@ -49,7 +49,7 @@ def run_exp(exp_name=None,
             snapshot_frequency=1,
             log_prefix='agents',
             **kwargs):
-    snapshot_gap = snapshot_frequency
+    snapshot_gap = snapshot_frequency if snapshot_frequency>0 else 1
     snapshot_mode = 'gap_and_last' if snapshot_frequency>0 else 'last'
     wrapped_train_agent = wrap_experiment(train_agent,
                             prefix='experiment/shortrl/'+log_prefix,
@@ -71,8 +71,8 @@ if __name__ == '__main__':
     parser.add_argument('-a', '--algo_name', type=str, default='PPO')
     parser.add_argument('-e', '--env_name', type=str, default='InvertedDoublePendulum-v2')
     parser.add_argument('-n', '--n_workers', type=int, default=4)
-    parser.add_argument('-u', '--use_heuristic', type=str2bool, default=True)
-    parser.add_argument('-f', '--snapshot_frequency', type=int, default=1)
+    parser.add_argument('-u', '--use_heuristic', type=str2bool, default=False)
+    parser.add_argument('-f', '--snapshot_frequency', type=int, default=0)
     parser.add_argument('-N', '--n_epochs', type=int, default=50)
     parser.add_argument('-b', '--batch_size', type=int, default=10000)
     parser.add_argument('--log_prefix', type=str, default='agents')
