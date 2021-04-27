@@ -21,7 +21,8 @@ def get_algo(env, algo_name, discount,
              policy_network_hidden_nonlinearity=torch.tanh,
              value_natwork_hidden_sizes=(64, 64),
              value_network_hidden_nonlinearity=torch.tanh,
-             optimization_lr=2.5e-4,  # optimization stepsize
+             policy_lr=2.5e-4,  # optimization stepsize for policy update
+             value_lr=2.5e-3,  # optimization stepsize for value regression
              optimization_minibatch_size=128,  # optimization/replaybuffer minibatch size
              optimization_n_grad_steps=1000,  # number of gradient updates
              kl_constraint=0.05,  # kl constraint between policy updates
@@ -81,10 +82,10 @@ def get_algo(env, algo_name, discount,
     def get_replay_buferr():
         return PathBuffer(capacity_in_transitions=int(1e6))
 
-    def get_wrapped_optimizer(obj, name='ADAM'):
+    def get_wrapped_optimizer(obj, lr, name='ADAM'):
         max_optimization_epochs = max(1, int(optimization_n_grad_steps * optimization_minibatch_size / batch_size))
         return OptimizerWrapper(
-            (torch.optim.Adam, dict(lr=optimization_lr)),
+            (torch.optim.Adam, dict(lr=lr)),
             obj,
             max_optimization_epochs=max_optimization_epochs,
             minibatch_size=optimization_minibatch_size)
@@ -103,8 +104,8 @@ def get_algo(env, algo_name, discount,
                    positive_adv=False,
                    gae_lambda=gae_lambda,
                    lr_clip_range=2e-1,  # The limit on the likelihood ratio between policies.
-                   policy_optimizer=get_wrapped_optimizer(policy),
-                   vf_optimizer=get_wrapped_optimizer(value_function),
+                   policy_optimizer=get_wrapped_optimizer(policy, policy_lr),
+                   vf_optimizer=get_wrapped_optimizer(value_function, value_lr),
                    num_train_per_epoch=steps_per_epoch,
                 )
 
@@ -142,8 +143,8 @@ def get_algo(env, algo_name, discount,
                     center_adv=True,
                     positive_adv=False,
                     gae_lambda=gae_lambda,
-                    policy_optimizer=OptimizerWrapper((torch.optim.Adam, dict(lr=optimization_lr)),policy),
-                    vf_optimizer=get_wrapped_optimizer(value_function),
+                    policy_optimizer=OptimizerWrapper((torch.optim.Adam, dict(lr=policy_lr)),policy),
+                    vf_optimizer=get_wrapped_optimizer(value_function, value_lr),
                     num_train_per_epoch=steps_per_epoch)
 
     elif algo_name=='SAC':
@@ -159,7 +160,6 @@ def get_algo(env, algo_name, discount,
                    qf2=qf2,
                    sampler=sampler,
                    gradient_steps_per_itr=optimization_n_grad_steps,
-                   max_episode_length_eval=1000,
                    replay_buffer=replay_buffer,
                    min_buffer_size=1e4,
                    target_update_tau=5e-3,
@@ -167,8 +167,8 @@ def get_algo(env, algo_name, discount,
                    buffer_batch_size=optimization_minibatch_size,
                    reward_scale=1.,
                    steps_per_epoch=steps_per_epoch,
-                   policy_lr=optimization_lr,
-                   qf_lr=optimization_lr)
+                   policy_lr=policy_lr,
+                   qf_lr=value_lr)
 
     elif algo_name=='TD3':
         from garage.np.exploration_policies import AddGaussianNoise
@@ -200,8 +200,8 @@ def get_algo(env, algo_name, discount,
                   discount=discount,
                   policy_noise_clip=0.5,
                   policy_noise=0.2,
-                  policy_lr=optimization_lr,
-                  qf_lr=optimization_lr,
+                  policy_lr=policy_ptimization_lr,
+                  qf_lr=value_lr,
                   steps_per_epoch=steps_per_epoch,
                   start_steps=1000,
                   grad_steps_per_env_step=optimization_n_grad_steps,  # number of optimization steps

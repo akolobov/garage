@@ -16,11 +16,11 @@ def train_agent(ctxt=None,
                 discount=1.0,  # oirginal discount
                 heuristic=None,  # a python function
                 algo_name='PPO',  # algorithm name
-                algo_kwargs=None,  #  algorithm parameter dict
                 lambd=0.9,  # extra discount
                 seed=1,  # random seed
                 n_epochs=50,  # number of updates
                 batch_size=10000,  # number of samples collected per update
+                **kwargs,
                 ):
 
     assert discount is not None
