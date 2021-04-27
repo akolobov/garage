@@ -13,7 +13,9 @@ from garage.torch.q_functions import ContinuousMLPQFunction
 from garage.torch.value_functions import GaussianMLPValueFunction
 from garage.torch.optimizers import OptimizerWrapper, ConjugateGradientOptimizer
 
-def get_algo(env, algo_name, discount,
+def get_algo(env, discount,
+             *,
+             algo_name,
              use_gpu=False,
              n_epochs=None,  # number of training epochs
              batch_size=None,  # batch size of the env sampler
@@ -21,15 +23,16 @@ def get_algo(env, algo_name, discount,
              policy_network_hidden_nonlinearity=torch.tanh,
              value_natwork_hidden_sizes=(64, 64),
              value_network_hidden_nonlinearity=torch.tanh,
-             policy_lr=2.5e-4,  # optimization stepsize for policy update
-             value_lr=2.5e-3,  # optimization stepsize for value regression
-             optimization_minibatch_size=128,  # optimization/replaybuffer minibatch size
-             optimization_n_grad_steps=1000,  # number of gradient updates
+             policy_lr=2e-4,  # optimization stepsize for policy update
+             value_lr=5e-3,  # optimization stepsize for value regression
+             opt_minibatch_size=128,  # optimization/replaybuffer minibatch size
+             opt_n_grad_steps=1000,  # number of gradient updates
              kl_constraint=0.05,  # kl constraint between policy updates
              gae_lambda=0.98,  # lambda of gae estimator
+             lr_clip_range=0.2, # the limit on the likelihood ratio between policies (PPO)
              steps_per_epoch=1,  # number of internal epochs steps per epoch
              n_workers=4,  # number of workers for data collection
-             **kwargs):
+             ):
     # return alg for env with discount
 
     assert isinstance(env, GymEnv)
@@ -83,12 +86,11 @@ def get_algo(env, algo_name, discount,
         return PathBuffer(capacity_in_transitions=int(1e6))
 
     def get_wrapped_optimizer(obj, lr, name='ADAM'):
-        max_optimization_epochs = max(1, int(optimization_n_grad_steps * optimization_minibatch_size / batch_size))
-        return OptimizerWrapper(
-            (torch.optim.Adam, dict(lr=lr)),
-            obj,
-            max_optimization_epochs=max_optimization_epochs,
-            minibatch_size=optimization_minibatch_size)
+        max_optimization_epochs = max(1, int(opt_n_grad_steps*opt_minibatch_size/batch_size))
+        return OptimizerWrapper((torch.optim.Adam, dict(lr=lr)),
+                                 obj,
+                                 max_optimization_epochs=max_optimization_epochs,
+                                 minibatch_size=opt_minibatch_size)
 
     if algo_name=='PPO':
         from garage.torch.algos import PPO
@@ -103,7 +105,7 @@ def get_algo(env, algo_name, discount,
                    center_adv=True,
                    positive_adv=False,
                    gae_lambda=gae_lambda,
-                   lr_clip_range=2e-1,  # The limit on the likelihood ratio between policies.
+                   lr_clip_range=lr_clip_range,  # The limit on the likelihood ratio between policies.
                    policy_optimizer=get_wrapped_optimizer(policy, policy_lr),
                    vf_optimizer=get_wrapped_optimizer(value_function, value_lr),
                    num_train_per_epoch=steps_per_epoch,
@@ -159,12 +161,12 @@ def get_algo(env, algo_name, discount,
                    qf1=qf1,
                    qf2=qf2,
                    sampler=sampler,
-                   gradient_steps_per_itr=optimization_n_grad_steps,
+                   gradient_steps_per_itr=opt_n_grad_steps,
                    replay_buffer=replay_buffer,
                    min_buffer_size=1e4,
                    target_update_tau=5e-3,
                    discount=discount,
-                   buffer_batch_size=optimization_minibatch_size,
+                   buffer_batch_size=opt_minibatch_size,
                    reward_scale=1.,
                    steps_per_epoch=steps_per_epoch,
                    policy_lr=policy_lr,
@@ -200,13 +202,13 @@ def get_algo(env, algo_name, discount,
                   discount=discount,
                   policy_noise_clip=0.5,
                   policy_noise=0.2,
-                  policy_lr=policy_ptimization_lr,
+                  policy_lr=policy_lr,
                   qf_lr=value_lr,
                   steps_per_epoch=steps_per_epoch,
                   start_steps=1000,
-                  grad_steps_per_env_step=optimization_n_grad_steps,  # number of optimization steps
+                  grad_steps_per_env_step=opt_n_grad_steps,  # number of optimization steps
                   min_buffer_size=int(1e4),
-                  buffer_batch_size=optimization_minibatch_size)
+                  buffer_batch_size=opt_minibatch_size)
 
     else:
         raise ValueError('Unknown algo_name')

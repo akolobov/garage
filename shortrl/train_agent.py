@@ -15,7 +15,6 @@ def train_agent(ctxt=None,
                 env_name='InvertedDoublePendulum-v2', # gym env identifier
                 discount=1.0,  # oirginal discount
                 heuristic=None,  # a python function
-                algo_name='PPO',  # algorithm name
                 lambd=0.9,  # extra discount
                 seed=1,  # random seed
                 n_epochs=50,  # number of updates
@@ -33,11 +32,10 @@ def train_agent(ctxt=None,
     env = GymEnv(env)
 
     algo = get_algo(env=env,
-                    algo_name=algo_name,
                     discount=discount*lambd,  #  algorithm sees a shorter horizon,
                     n_epochs=n_epochs,
                     batch_size=batch_size,
-                    **algo_kwargs)
+                    **kwargs)
 
     trainer = Trainer(ctxt)
     trainer.setup(algo, env, lambd)
@@ -65,46 +63,36 @@ if __name__ == '__main__':
     import argparse
     from shortrl.utils import str2bool
     parser = argparse.ArgumentParser()
-    parser.add_argument('-l', '--lambd', type=float, default=0.9)
-    parser.add_argument('-d', '--discount', type=float, default=1.0)
-    parser.add_argument('-s', '--seed', type=int, default=1)
-    parser.add_argument('-a', '--algo_name', type=str, default='PPO')
-    parser.add_argument('-e', '--env_name', type=str, default='InvertedDoublePendulum-v2')
-    parser.add_argument('-n', '--n_workers', type=int, default=4)
+
     parser.add_argument('-u', '--use_heuristic', type=str2bool, default=False)
-    parser.add_argument('-f', '--snapshot_frequency', type=int, default=0)
+    # arguments for run_exp
+    parser.add_argument('--snapshot_frequency', type=int, default=0)
+    parser.add_argument('--log_prefix', type=str, default='agents')
+    # arguments for train_agent
+    parser.add_argument('-e', '--env_name', type=str, default='InvertedDoublePendulum-v2')
+    parser.add_argument('-d', '--discount', type=float, default=1.0)
+    parser.add_argument('-l', '--lambd', type=float, default=0.9)
+    parser.add_argument('-s', '--seed', type=int, default=1)
     parser.add_argument('-N', '--n_epochs', type=int, default=50)
     parser.add_argument('-b', '--batch_size', type=int, default=10000)
-    parser.add_argument('--log_prefix', type=str, default='agents')
+    # arguments for get_algo
+    parser.add_argument('-a', '--algo_name', type=str, default='PPO')
+    parser.add_argument('-n', '--n_workers', type=int, default=4)
+    parser.add_argument('--value_lr', type=float, default=5e-3)
+    parser.add_argument('--policy_lr', type=float, default=2e-4)
+
     args = parser.parse_args()
 
-    lambd = args.lambd
-    discount = args.discount
-    seed = args.seed
-    env_name=args.env_name
-    algo_name=args.algo_name
-    algo_kwargs={'n_workers':args.n_workers}
-    use_heuristic = args.use_heuristic
+    # Run experiment.
+    args_dict = vars(args)
     heuristic = get_snapshot_values(
                 'data/local/experiment/shortrl/heuristics/PPO_Inver_0.99_False_1/',
-                itr=30) if use_heuristic else None
-    snapshot_frequency = args.snapshot_frequency
-    n_epochs = args.n_epochs
-    batch_size = args.batch_size
-    log_prefix = args.log_prefix
+                itr=30) if args.use_heuristic else None
+    exp_name = args.algo_name+'_'+args.env_name[:min(len(args.env_name),5)]+\
+                '_{}_{}_{}'.format(args.lambd, args.use_heuristic, args.seed)
+    del args_dict['use_heuristic']
 
-    # Run experiment.
-    exp_name = algo_name+'_'+env_name[:min(len(env_name),5)]+'_{}_{}_{}'.format(lambd, use_heuristic, seed)
     run_exp(exp_name=exp_name,
-            env_name=env_name,
             heuristic=heuristic,
-            discount=discount,
-            algo_name=algo_name,
-            algo_kwargs=algo_kwargs,
-            seed=seed,
-            lambd=lambd,
-            n_epochs=n_epochs,
-            batch_size=batch_size,
-            snapshot_frequency=snapshot_frequency,
-            log_prefix=log_prefix,
+            **args_dict,
             )
