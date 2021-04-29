@@ -7,7 +7,7 @@ algo_name='SAC'
 
 space = {
          "policy_lr": tune.grid_search([1e-4, 5e-4, 1e-3, 2e-3, 5e-3, 1e-2]),
-         "value_lr": tune.grid_search([1e-4, 5e-4, 1e-3, 2e-3, 5e-3, 1e-2]),,
+         "value_lr": tune.grid_search([1e-4, 5e-4, 1e-3, 2e-3, 5e-3, 1e-2]),
          "seed": tune.grid_search(list(range(4)))
          }
 
