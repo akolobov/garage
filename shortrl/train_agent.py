@@ -19,6 +19,7 @@ def train_agent(ctxt=None,
                 seed=1,  # random seed
                 n_epochs=50,  # number of updates
                 batch_size=10000,  # number of samples collected per update
+                ignore_shutdown=False,
                 **kwargs,
                 ):
 
@@ -39,11 +40,13 @@ def train_agent(ctxt=None,
 
     trainer = Trainer(ctxt)
     trainer.setup(algo, env, lambd)
-    trainer.train(n_epochs=n_epochs, batch_size=batch_size)
-
+    return trainer.train(n_epochs=n_epochs,
+                         batch_size=batch_size,
+                         ignore_shutdown=ignore_shutdown)
 
 # Run this.
-def run_exp(exp_name=None,
+def run_exp(*,
+            exp_name,
             snapshot_frequency=1,
             log_prefix='agents',
             seed=1,

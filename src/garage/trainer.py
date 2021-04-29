@@ -366,7 +366,8 @@ class Trainer:
               batch_size=None,
               plot=False,
               store_episodes=False,
-              pause_for_plot=False):
+              pause_for_plot=False,
+              ignore_shutdown=False):
         """Start training.
 
         Args:
@@ -403,7 +404,8 @@ class Trainer:
         dump_json(summary_file, self)
 
         average_return = self._algo.train(self)
-        self._shutdown_worker()
+        if not ignore_shutdown:
+            self._shutdown_worker()
 
         return average_return
 
