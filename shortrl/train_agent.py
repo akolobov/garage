@@ -47,7 +47,7 @@ def train_agent(ctxt=None,
 # Run this.
 def run_exp(*,
             exp_name,
-            snapshot_frequency=1,
+            snapshot_frequency=0,
             log_prefix='agents',
             seed=1,
             **kwargs):
@@ -71,7 +71,7 @@ if __name__ == '__main__':
     parser.add_argument('-u', '--use_heuristic', type=str2bool, default=False)
     # arguments for run_exp
     parser.add_argument('--snapshot_frequency', type=int, default=0)
-    parser.add_argument('--log_prefix', type=str, default='test')
+    parser.add_argument('--log_prefix', type=str, default='agents')
     # arguments for train_agent
     parser.add_argument('-e', '--env_name', type=str, default='InvertedDoublePendulum-v2')
     parser.add_argument('-d', '--discount', type=float, default=0.99)
