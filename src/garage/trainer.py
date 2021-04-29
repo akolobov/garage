@@ -10,7 +10,6 @@ from dowel import logger, tabular
 from garage.experiment.deterministic import get_seed, set_seed
 from garage.experiment.experiment import dump_json
 from garage.experiment.snapshotter import Snapshotter
-from garage._functions import log_orig_performance
 
 # pylint: disable=no-name-in-module
 
@@ -135,7 +134,7 @@ class Trainer:
         self._worker_class = None
         self._worker_args = None
 
-    def setup(self, algo, env, lambd=1.0):
+    def setup(self, algo, env):
         """Set up trainer for algorithm and environment.
 
         This method saves algo and env within trainer and creates a sampler.
@@ -153,7 +152,6 @@ class Trainer:
         """
         self._algo = algo
         self._env = env
-        self._lambd = lambd
 
         self._seed = get_seed()
 
@@ -228,7 +226,6 @@ class Trainer:
             agent_update=agent_update,
             env_update=env_update)
         self._stats.total_env_steps += sum(episodes.lengths)
-        # log_orig_performance(itr, episodes, self._algo._discount / (max(self._lambd,1e-5)), prefix='Evaluation')
         return episodes
 
     def obtain_samples(self,
@@ -366,8 +363,7 @@ class Trainer:
               batch_size=None,
               plot=False,
               store_episodes=False,
-              pause_for_plot=False,
-              ignore_shutdown=False):
+              pause_for_plot=False):
         """Start training.
 
         Args:
@@ -404,8 +400,7 @@ class Trainer:
         dump_json(summary_file, self)
 
         average_return = self._algo.train(self)
-        if not ignore_shutdown:
-            self._shutdown_worker()
+        self._shutdown_worker()
 
         return average_return
 

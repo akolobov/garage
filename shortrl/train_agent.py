@@ -4,18 +4,20 @@ import gym
 from garage import wrap_experiment
 from garage.envs import GymEnv
 from garage.experiment.deterministic import set_seed
-from garage.trainer import Trainer
-
+# from garage.trainer import Trainer
+from shortrl.trainer import Trainer
 from shortrl.env_wrapper import ShortMDP
 from shortrl.algorithms import get_algo
 from shortrl.heuristics import get_snapshot_values
-
+from shortrl import lambda_schedulers
 
 def train_agent(ctxt=None,
                 env_name='InvertedDoublePendulum-v2', # gym env identifier
                 discount=0.99,  # oirginal discount
                 heuristic=None,  # a python function
                 lambd=1.0,  # extra discount
+                ls_n_epochs=None, # n_epoch for lambd to converge to 1.0 (default: n_epoch)
+                ls_cls='TanhLS', # class of LambdaScheduler
                 seed=1,  # random seed
                 n_epochs=50,  # number of updates
                 batch_size=10000,  # number of samples collected per update
@@ -38,8 +40,11 @@ def train_agent(ctxt=None,
                     batch_size=batch_size,
                     **kwargs)
 
+    ls_n_epochs = ls_n_epochs or n_epochs
+    ls = getattr(lambda_schedulers, ls_cls)(init_lambd=lambd, n_epochs=ls_n_epochs)
+
     trainer = Trainer(ctxt)
-    trainer.setup(algo, env, lambd)
+    trainer.setup(algo, env, lambd=ls, discount=discount)
     return trainer.train(n_epochs=n_epochs,
                          batch_size=batch_size,
                          ignore_shutdown=ignore_shutdown)
@@ -76,6 +81,7 @@ if __name__ == '__main__':
     parser.add_argument('-e', '--env_name', type=str, default='InvertedDoublePendulum-v2')
     parser.add_argument('-d', '--discount', type=float, default=0.99)
     parser.add_argument('-l', '--lambd', type=float, default=1.0)
+    parser.add_argument('--ls_n_epochs', type=int, default=None)
     parser.add_argument('-s', '--seed', type=int, default=1)
     parser.add_argument('-N', '--n_epochs', type=int, default=50)
     parser.add_argument('-b', '--batch_size', type=int, default=10000)

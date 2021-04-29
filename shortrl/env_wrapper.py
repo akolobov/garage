@@ -21,6 +21,8 @@ class ShortMDP(gym.Wrapper):
         """gym.Env step function."""
         obs, reward, done, info = self.env.step(action)
         info['orig_reward'] = reward
+        info['lambda'] = self._lambd
+        info['gamma'] = self._gamma
         if not done:
             reward += (1-done) * (1-self._lambd) * self._gamma * self._heuristic(np.array([obs]))
         return obs, reward, done, info

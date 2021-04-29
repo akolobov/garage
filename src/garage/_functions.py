@@ -274,12 +274,12 @@ def log_performance(itr, batch, discount, prefix='Evaluation'):
 
 
     # LOG original performance too
-    log_orig_performance(itr, batch, discount, prefix='Evaluation')
+    log_shortrl_info(itr, batch, discount, prefix='Evaluation')
 
     return undiscounted_returns
 
 
-def log_orig_performance(itr, batch, discount, prefix='Evaluation'):
+def log_shortrl_info(itr, batch, discount, prefix='Evaluation'):
     """Evaluate the performance of an algorithm on a batch of episodes in terms of the *original* reward.
 
     Args:
@@ -313,5 +313,8 @@ def log_orig_performance(itr, batch, discount, prefix='Evaluation'):
         tabular.record('StdORIGINALReturn', np.std(undiscounted_returns))
         tabular.record('MaxORIGINALReturn', np.max(undiscounted_returns))
         tabular.record('MinORIGINALReturn', np.min(undiscounted_returns))
+
+    with tabular.prefix('ShortRL' + '/'):
+        tabular.record('Lambda', batch.env_infos['lambda'][0])
 
     return undiscounted_returns

@@ -1,0 +1,157 @@
+import os
+import time
+from dowel import logger, tabular
+import numpy as np
+
+from garage.trainer import Trainer as garageTrainer
+from garage.trainer import TrainArgs
+from garage.experiment.experiment import dump_json
+from garage.sampler.env_update import EnvUpdate
+from garage.sampler import _apply_env_update
+from garage.envs import GymEnv
+from shortrl.env_wrapper import ShortMDP
+from shortrl.lambda_schedulers import LambdaScheduler
+
+
+class LambdaEnvUpdate(EnvUpdate):
+    """ Update the lambda value of a ShortMDP environment. """
+    def __init__(self, lambd, old_env_update):
+        self._lambd = lambd
+        self._old_env_update = old_env_update
+
+    def __call__(self, old_env=None):
+        old_env, _ = _apply_env_update(old_env, self._old_env_update)
+        assert isinstance(old_env, GymEnv)
+        assert isinstance(old_env._env, ShortMDP)
+        old_env._env._lambd = self._lambd
+        return old_env
+
+class Trainer(garageTrainer):
+
+    def setup(self, *args, discount, lambd, **kwargs):
+        output = super().setup(*args, **kwargs)
+        self._lambd = lambd if isinstance(lambd, LambdaScheduler) else LambdaScheduler(lambd)
+        self.discount = discount
+        return output
+
+    @property
+    def lambd(self):
+        return self._lambd()
+
+    def obtain_episodes(self,
+                        *args,
+                        env_update=None,
+                        **kwargs):
+        # update the discount factor of env and algo
+        try:
+            self._algo.discount = self.discount*self.lambd
+        except AttributeError:
+            self._algo._discount = self.discount*self.lambd
+        env_update = LambdaEnvUpdate(self.lambd, env_update)
+        return super().obtain_episodes(*args, env_update=env_update, **kwargs)
+
+    # add lambda update
+    def step_epochs(self):
+        """Step through each epoch.
+
+        This function returns a magic generator. When iterated through, this
+        generator automatically performs services such as snapshotting and log
+        management. It is used inside train() in each algorithm.
+
+        The generator initializes two variables: `self.step_itr` and
+        `self.step_episode`. To use the generator, these two have to be
+        updated manually in each epoch, as the example shows below.
+
+        Yields:
+            int: The next training epoch.
+
+        Examples:
+            for epoch in trainer.step_epochs():
+                trainer.step_episode = trainer.obtain_samples(...)
+                self.train_once(...)
+                trainer.step_itr += 1
+
+        """
+        self._start_time = time.time()
+        self.step_itr = self._stats.total_itr
+        self.step_episode = None
+
+        # Used by integration tests to ensure examples can run one epoch.
+        n_epochs = int(
+            os.environ.get('GARAGE_EXAMPLE_TEST_N_EPOCHS',
+                           self._train_args.n_epochs))
+
+        logger.log('Obtaining samples...')
+
+        for epoch in range(self._train_args.start_epoch, n_epochs):
+            self._itr_start_time = time.time()
+            with logger.prefix('epoch #%d | ' % epoch):
+                yield epoch
+
+                ### HACK Update lambda ###
+                self._lambd.update()
+
+                save_episode = (self.step_episode
+                                if self._train_args.store_episodes else None)
+
+                self._stats.last_episode = save_episode
+                self._stats.total_epoch = epoch
+                self._stats.total_itr = self.step_itr
+
+                self.save(epoch)
+
+                if self.enable_logging:
+                    self.log_diagnostics(self._train_args.pause_for_plot)
+                    logger.dump_all(self.step_itr)
+                    tabular.clear()
+
+    # include ignore_shutdown
+    def train(self,
+              n_epochs,
+              batch_size=None,
+              plot=False,
+              store_episodes=False,
+              pause_for_plot=False,
+              ignore_shutdown=False):
+        """Start training.
+
+        Args:
+            n_epochs (int): Number of epochs.
+            batch_size (int or None): Number of environment steps in one batch.
+            plot (bool): Visualize an episode from the policy after each epoch.
+            store_episodes (bool): Save episodes in snapshot.
+            pause_for_plot (bool): Pause for plot.
+
+        Raises:
+            NotSetupError: If train() is called before setup().
+
+        Returns:
+            float: The average return in last epoch cycle.
+
+        """
+        if not self._has_setup:
+            raise NotSetupError(
+                'Use setup() to setup trainer before training.')
+
+        # Save arguments for restore
+        self._train_args = TrainArgs(n_epochs=n_epochs,
+                                     batch_size=batch_size,
+                                     plot=plot,
+                                     store_episodes=store_episodes,
+                                     pause_for_plot=pause_for_plot,
+                                     start_epoch=0)
+
+        self._plot = plot
+        self._start_worker()
+
+        log_dir = self._snapshotter.snapshot_dir
+        summary_file = os.path.join(log_dir, 'experiment.json')
+        dump_json(summary_file, self)
+
+        average_return = self._algo.train(self)
+
+        ### HACK Ignore shutdown, if needed ###
+        if not ignore_shutdown:
+            self._shutdown_worker()
+
+        return average_return

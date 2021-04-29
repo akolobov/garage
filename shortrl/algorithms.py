@@ -32,6 +32,7 @@ def get_algo(env, discount,
              lr_clip_range=0.2, # the limit on the likelihood ratio between policies (PPO)
              steps_per_epoch=1,  # number of internal epochs steps per epoch
              n_workers=4,  # number of workers for data collection
+             sampler_mode='ray'
              ):
     # return alg for env with discount
 
@@ -77,10 +78,19 @@ def get_algo(env, discount,
                     output_nonlinearity=None)
 
     def get_sampler(policy):
-        return RaySampler(agents=policy,
-                          envs=env,
-                          max_episode_length=env.spec.max_episode_length,
-                          n_workers=n_workers)
+        if sampler_mode=='ray':
+            return RaySampler(agents=policy,
+                              envs=env,
+                              max_episode_length=env.spec.max_episode_length,
+                              n_workers=n_workers)
+        elif n_workers==1:
+            return LocalSampler(agents=policy,
+                                envs=env,
+                                max_episode_length=env.spec.max_episode_length,
+                                worker_class=FragmentWorker)
+        else:
+            raise ValueError('Required sampler is unavailable.')
+
 
     def get_replay_buferr():
         return PathBuffer(capacity_in_transitions=int(1e6))
