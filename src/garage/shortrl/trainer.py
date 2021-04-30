@@ -9,8 +9,8 @@ from garage.experiment.experiment import dump_json
 from garage.sampler.env_update import EnvUpdate
 from garage.sampler import _apply_env_update
 from garage.envs import GymEnv
-from shortrl.env_wrapper import ShortMDP
-from shortrl.lambda_schedulers import LambdaScheduler
+from garage.shortrl.env_wrapper import ShortMDP
+from garage.shortrl.lambda_schedulers import LambdaScheduler
 
 
 class LambdaEnvUpdate(EnvUpdate):

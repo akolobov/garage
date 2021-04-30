@@ -1,5 +1,5 @@
 from ray import tune
-from shortrl.train_agent import run_exp
+from garage.shortrl.train_agent import run_exp
 
 n_workers = 4
 log_prefix = 'tune'

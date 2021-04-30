@@ -5,11 +5,11 @@ from garage import wrap_experiment
 from garage.envs import GymEnv
 from garage.experiment.deterministic import set_seed
 # from garage.trainer import Trainer
-from shortrl.trainer import Trainer
-from shortrl.env_wrapper import ShortMDP
-from shortrl.algorithms import get_algo
-from shortrl.heuristics import get_snapshot_values
-from shortrl import lambda_schedulers
+from garage.shortrl.trainer import Trainer
+from garage.shortrl.env_wrapper import ShortMDP
+from garage.shortrl.algorithms import get_algo
+from garage.shortrl.heuristics import get_snapshot_values
+from garage.shortrl import lambda_schedulers
 
 def train_agent(ctxt=None,
                 env_name='InvertedDoublePendulum-v2', # gym env identifier
