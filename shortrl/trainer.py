@@ -38,17 +38,22 @@ class Trainer(garageTrainer):
     def lambd(self):
         return self._lambd()
 
+
     def obtain_episodes(self,
-                        *args,
-                        env_update=None,
-                        **kwargs):
+                         itr,
+                         batch_size=None,
+                         agent_update=None,
+                         env_update=None):
         # update the discount factor of env and algo
         try:
             self._algo.discount = self.discount*self.lambd
         except AttributeError:
             self._algo._discount = self.discount*self.lambd
         env_update = LambdaEnvUpdate(self.lambd, env_update)
-        return super().obtain_episodes(*args, env_update=env_update, **kwargs)
+        return super().obtain_episodes(itr,
+                                       batch_size=batch_size,
+                                       agent_update=agent_update,
+                                       env_update=env_update)
 
     # add lambda update
     def step_epochs(self):
