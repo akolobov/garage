@@ -54,6 +54,8 @@ def train_agent(ctxt=None,
                         opt_n_grad_steps=batch_size,
                         n_workers=kwargs.get('n_workers',4),
                         ctxt=ctxt)
+    else:
+        init_policy = None
 
     # Initialize the algorithm
     algo = get_algo(env=env,
@@ -122,7 +124,7 @@ if __name__ == '__main__':
 
     if args.use_heuristic:
         data_path = 'data/local/experiment/shortrl/heuristics/PPO_Inver_1.0_F/1/'
-        data_itr = 30
+        data_itr = 20
         baseline_policy, heuristic = load_policy_and_heuristic_from_snapshot(data_path, data_itr)
         if not args.init_policy:
             baseline_policy = None
