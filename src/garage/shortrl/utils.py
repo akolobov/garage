@@ -1,3 +1,4 @@
+import torch
 
 def str2bool(v):
     if isinstance(v, bool):
@@ -8,3 +9,10 @@ def str2bool(v):
         return False
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
+def torch_stop_grad(torch_value):
+    def wrapped_fun(x):
+        with torch.no_grad():
+            return torch_value(torch.Tensor(x))
+    return wrapped_fun

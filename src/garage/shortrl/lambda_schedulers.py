@@ -14,6 +14,9 @@ class LambdaScheduler:
     def __call__(self):
         return min(1.0, max(0.0, self._lambd))
 
+class ConstLS(LambdaScheduler):
+    pass
+
 class ExpAvgLS(LambdaScheduler):
     def update(self):
         super().update()

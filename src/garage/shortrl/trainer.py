@@ -38,13 +38,19 @@ class Trainer(garageTrainer):
     def lambd(self):
         return self._lambd()
 
+    def update_lambd(self):
+        self._lambd.update()
+        assert isinstance(self._env._env, ShortMDP)
+        self._env._env._lambd = self.lambd
+        with tabular.prefix('ShortRL' + '/'):
+            tabular.record('Lambda', self.lambd)
 
     def obtain_episodes(self,
                          itr,
                          batch_size=None,
                          agent_update=None,
                          env_update=None):
-        # update the discount factor of env and algo
+        # Update the discount factor of env and algo
         try:
             self._algo.discount = self.discount*self.lambd
         except AttributeError:
@@ -94,7 +100,7 @@ class Trainer(garageTrainer):
                 yield epoch
 
                 ### HACK Update lambda ###
-                self._lambd.update()
+                self.update_lambd()
 
                 save_episode = (self.step_episode
                                 if self._train_args.store_episodes else None)
