@@ -512,10 +512,10 @@ def get_metadata():
     launcher_path = os.path.relpath(bytes(main_file_path, encoding='utf8'),
                                     git_root_path)
     git_hash = subprocess.check_output(('git', 'rev-parse', 'HEAD'),
-                                       cwd=git_root_path)
+                                       cwd=git_root_path.decode('utf-8'))
     git_hash = git_hash.decode('utf-8').strip()
     git_status = subprocess.check_output(('git', 'status', '--short'),
-                                         cwd=git_root_path)
+                                         cwd=git_root_path.decode('utf-8'))
     git_status = git_status.decode('utf-8').strip()
     if git_status != '':
         git_hash = git_hash + '-dirty'
@@ -536,7 +536,7 @@ def make_launcher_archive(*, git_root_path, log_dir):
     git_files = subprocess.check_output(
         ('git', 'ls-files', '--others', '--exclude-standard', '--cached',
          '-z'),
-        cwd=git_root_path).strip()
+        cwd=git_root_path.decode('utf-8')).strip()
     repo_size = 0
     files_to_archive = []
     for f in git_files.split(b'\0'):
@@ -551,11 +551,11 @@ def make_launcher_archive(*, git_root_path, log_dir):
         warnings.warn('Archiving a launch repo larger than 8MiB. This may be '
                       'slow. Set archive_launch_repo=False in wrap_experiment '
                       'to disable this behavior.')
-    archive_path = os.path.join(log_dir, 'launch_archive.tar.xz')
-    subprocess.run(('tar', '--null', '--files-from', '-', '--xz', '--create',
+    archive_path = os.path.join(log_dir, 'launch_archive.tar')
+    subprocess.run(('tar', '--null', '--files-from', '-', '--create',
                     '--file', archive_path),
                    input=b'\0'.join(files_to_archive),
-                   cwd=git_root_path,
+                   cwd=git_root_path.decode('utf-8'),
                    check=True)
 
 

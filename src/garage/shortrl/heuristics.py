@@ -14,7 +14,7 @@ def get_algo_vf(algo):
     # load heuristic
     if type(algo).__name__ in ['PPO','TRPO','VPG']:
         vf = algo._value_function
-    elif type(algo).__name__ in ['SAC', 'TD3']:
+    elif type(algo).__name__ in ['SAC', 'TD3', 'CQL']:
         qfs = [algo._qf1, algo._qf2]
         vf = vf_from_qfs(policy, qfs)
     else:
@@ -23,7 +23,7 @@ def get_algo_vf(algo):
 
 def get_algo_policy(algo):
     # load policy
-    if type(algo).__name__ in ['PPO','TRPO','VPG','TD3','SAC']:
+    if type(algo).__name__ in ['PPO','TRPO','VPG','TD3','SAC', 'CQL']:
         policy = algo.policy
     else:
         raise ValueError('Unsupported algorithm.')
