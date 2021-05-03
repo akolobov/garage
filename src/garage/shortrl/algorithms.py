@@ -195,6 +195,29 @@ def get_algo(env, discount,
                    policy_lr=policy_lr,
                    qf_lr=value_lr)
 
+    elif algo_name=='CQL':
+        from garage.torch.algos import CQL
+        policy = get_mlp_policy(stochastic=True, use_tanh=True)
+        qf1 = get_mlp_value('Q')
+        qf2 = get_mlp_value('Q')
+        replay_buffer = get_replay_buferr()
+        sampler = get_sampler(policy)
+        algo = CQL(env_spec=env.spec,
+                   policy=policy,
+                   qf1=qf1,
+                   qf2=qf2,
+                   sampler=sampler,
+                   gradient_steps_per_itr=opt_n_grad_steps,
+                   replay_buffer=replay_buffer,
+                   min_buffer_size=1e4,
+                   target_update_tau=5e-3,
+                   discount=discount,
+                   buffer_batch_size=opt_minibatch_size,
+                   reward_scale=1.,
+                   steps_per_epoch=steps_per_epoch,
+                   policy_lr=policy_lr,
+                   qf_lr=value_lr)
+                   
     elif algo_name=='TD3':
         from garage.np.exploration_policies import AddGaussianNoise
         from garage.np.policies import UniformRandomPolicy
