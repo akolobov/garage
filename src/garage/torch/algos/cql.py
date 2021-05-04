@@ -132,10 +132,10 @@ class CQL(RLAlgorithm):
             temp=1.0,
             min_q_weight=1.0,
             max_q_backup=False,
-            deterministic_backup=True,
+            deterministic_backup=False,
             num_random=10,
-            with_lagrange=False,
-            lagrange_thresh=0.0):
+            with_lagrange=True,
+            lagrange_thresh=10.0):
 
         self._qf1 = qf1
         self._qf2 = qf2
@@ -199,7 +199,7 @@ class CQL(RLAlgorithm):
             self._target_action_gap = lagrange_thresh
             self._log_alpha_prime = torch.Tensor([self._initial_log_entropy
                                             ]).requires_grad_()
-            self._alpha_prime_optimizer = optimizer_class([self._log_alpha_prime],
+            self._alpha_prime_optimizer = self._optimizer([self._log_alpha_prime],
                 lr=self._qf_lr,
             )
         
@@ -445,15 +445,15 @@ class CQL(RLAlgorithm):
         if not self._max_q_backup:
             target_q_values = torch.min(
                     self._target_qf1(next_obs, new_next_actions),
-                    self._target_qf2(next_obs, new_next_actions))
+                    self._target_qf2(next_obs, new_next_actions)).flatten()
             if not self._deterministic_backup:
-                target_q_values = target_q_values.flatten() - (alpha * new_log_pi)
+                target_q_values = target_q_values - (alpha * new_log_pi)
         else:
             """when using max q backup"""
             next_actions_temp, _ = self._get_policy_actions(next_obs, num_actions=10, network=self.policy)
             target_qf1_values = self._get_tensor_values(next_obs, next_actions_temp, network=self._target_qf1).max(1)[0].view(-1, 1)
             target_qf2_values = self._get_tensor_values(next_obs, next_actions_temp, network=self._target_qf2).max(1)[0].view(-1, 1)
-            target_q_values = torch.min(target_qf1_values, target_qf2_values)
+            target_q_values = torch.min(target_qf1_values, target_qf2_values).flatten()
         
         with torch.no_grad():
             q_target = rewards * self._reward_scale + (
@@ -462,7 +462,7 @@ class CQL(RLAlgorithm):
         qf2_loss = F.mse_loss(q2_pred.flatten(), q_target)
 
         #Add CQL
-        random_actions_tensor = torch.FloatTensor(q2_pred.shape[0] * self._num_random, actions.shape[-1]).uniform_(-1, 1).cuda()
+        random_actions_tensor = torch.FloatTensor(q2_pred.shape[0] * self._num_random, actions.shape[-1]).uniform_(-1, 1).to(obs.device)
         curr_actions_tensor, curr_log_pis = self._get_policy_actions(obs, num_actions=self._num_random, network=self.policy)
         new_curr_actions_tensor, new_log_pis = self._get_policy_actions(next_obs, num_actions=self._num_random, network=self.policy)
         q1_rand = self._get_tensor_values(obs, random_actions_tensor, network=self._qf1)
@@ -499,7 +499,7 @@ class CQL(RLAlgorithm):
         min_qf2_loss = min_qf2_loss - q2_pred.mean() * self._min_q_weight
         
         if self._with_lagrange:
-            alpha_prime = torch.clamp(self._log_alpha_prime.exp(), min=0.0, max=1000000.0)
+            alpha_prime = torch.clamp(self._log_alpha_prime.exp(), min=0.0, max=1000000.0).to(min_qf1_loss.device)
             min_qf1_loss = alpha_prime * (min_qf1_loss - self._target_action_gap)
             min_qf2_loss = alpha_prime * (min_qf2_loss - self._target_action_gap)
 
@@ -655,3 +655,9 @@ class CQL(RLAlgorithm):
                                             ]).to(device).requires_grad_()
             self._alpha_optimizer = self._optimizer([self._log_alpha],
                                                     lr=self._policy_lr)
+
+        if self._with_lagrange:
+            self._log_alpha_prime = torch.Tensor([self._initial_log_entropy
+                                            ]).to(device).requires_grad_()
+            self._alpha_prime_optimizer = self._optimizer([self._log_alpha_prime],
+                lr=self._qf_lr)
