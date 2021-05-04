@@ -32,6 +32,7 @@ def get_algo(env, discount,
              value_lr=5e-3,  # optimization stepsize for value regression
              opt_minibatch_size=128,  # optimization/replaybuffer minibatch size
              opt_n_grad_steps=1000,  # number of gradient updates
+             num_evaluation_episodes=10, # number of episodes to evaluate (only affect off-policy algorithms)
              steps_per_epoch=1,  # number of internal epochs steps per epoch
              n_workers=4,  # number of workers for data collection
              use_gpu=False,  # try to use gpu, if implemented
@@ -102,7 +103,6 @@ def get_algo(env, discount,
                                 worker_class=FragmentWorker)
         else:
             raise ValueError('Required sampler is unavailable.')
-
 
     def get_replay_buferr():
         return PathBuffer(capacity_in_transitions=int(1e6))
@@ -191,6 +191,7 @@ def get_algo(env, discount,
                    buffer_batch_size=opt_minibatch_size,
                    reward_scale=1.,
                    steps_per_epoch=steps_per_epoch,
+                   num_evaluation_episodes=num_evaluation_episodes,
                    policy_lr=policy_lr,
                    qf_lr=value_lr)
 
@@ -214,6 +215,7 @@ def get_algo(env, discount,
                    buffer_batch_size=opt_minibatch_size,
                    reward_scale=1.,
                    steps_per_epoch=steps_per_epoch,
+                   num_evaluation_episodes=num_evaluation_episodes,
                    policy_lr=policy_lr,
                    qf_lr=value_lr)
 
@@ -250,6 +252,7 @@ def get_algo(env, discount,
                   policy_lr=policy_lr,
                   qf_lr=value_lr,
                   steps_per_epoch=steps_per_epoch,
+                  num_evaluation_episodes=num_evaluation_episodes,
                   start_steps=1000,
                   grad_steps_per_env_step=opt_n_grad_steps,  # number of optimization steps
                   min_buffer_size=int(1e4),

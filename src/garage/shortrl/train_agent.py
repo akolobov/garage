@@ -99,7 +99,7 @@ def run_exp(*,
 
 def simple_run_exp(*,
                    use_heuristic=False,
-                   warmstart_policy=True,
+                   warmstart_policy=False,
                    data_path=None,
                    data_itr=None,
                    **kwargs):
@@ -109,7 +109,8 @@ def simple_run_exp(*,
         run_exp, which runs train_agent, requires baseline_policy and heuristic
         to be provided as python functions. This method wraps
     """
-    assert data_itr is not None and data_path is not None
+    if use_heuristic or warmstart_policy:
+        assert data_itr is not None and data_path is not None
 
     heuristic = load_heuristic_from_snapshot(data_path, data_itr) if use_heuristic else None
     baseline_policy = load_policy_from_snapshot(data_path, data_itr) if warmstart_policy else None
@@ -135,7 +136,7 @@ if __name__ == '__main__':
 
     # arguments for simple_run_exp
     parser.add_argument('-u', '--use_heuristic', type=str2bool, default=False)
-    parser.add_argument('--warmstart_policy', type=str2bool, default=True)
+    parser.add_argument('-w', '--warmstart_policy', type=str2bool, default=False)
     parser.add_argument('--data_path', type=str, default='data/local/experiment/shortrl/heuristics/PPO_Inver_1.0_F/1/')
     parser.add_argument('--data_itr', type=str2bool, default=15)
     # arguments for run_exp
