@@ -29,10 +29,16 @@ def get_algo_policy(algo):
         raise ValueError('Unsupported algorithm.')
     return policy
 
-def load_policy_and_heuristic_from_snapshot(path, itr='last'):
+def load_policy_from_snapshot(path, itr='last'):
     snapshotter = Snapshotter()
     data = snapshotter.load(path, itr=itr)
     algo = data['algo']
     policy = get_algo_policy(algo)
+    return policy
+
+def load_heuristic_from_snapshot(path, itr='last'):
+    snapshotter = Snapshotter()
+    data = snapshotter.load(path, itr=itr)
+    algo = data['algo']
     vf = get_algo_vf(algo)
-    return policy, torch_stop_grad(vf)
+    return torch_stop_grad(vf)

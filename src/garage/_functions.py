@@ -230,6 +230,51 @@ def log_multitask_performance(itr, batch, discount, name_map=None):
     return log_performance(itr, batch, discount=discount, prefix='Average')
 
 
+# def log_performance(itr, batch, discount, prefix='Evaluation'):
+#     """Evaluate the performance of an algorithm on a batch of episodes.
+
+#     Args:
+#         itr (int): Iteration number.
+#         batch (EpisodeBatch): The episodes to evaluate with.
+#         discount (float): Discount value, from algorithm's property.
+#         prefix (str): Prefix to add to all logged keys.
+
+#     Returns:
+#         numpy.ndarray: Undiscounted returns.
+
+#     """
+#     returns = []
+#     undiscounted_returns = []
+#     termination = []
+#     success = []
+#     for eps in batch.split():
+#         returns.append(discount_cumsum(eps.rewards, discount))
+#         undiscounted_returns.append(sum(eps.rewards))
+#         termination.append(
+#             float(
+#                 any(step_type == StepType.TERMINAL
+#                     for step_type in eps.step_types)))
+#         if 'success' in eps.env_infos:
+#             success.append(float(eps.env_infos['success'].any()))
+
+#     average_discounted_return = np.mean([rtn[0] for rtn in returns])
+
+#     with tabular.prefix(prefix + '/'):
+#         tabular.record('Iteration', itr)
+#         tabular.record('NumEpisodes', len(returns))
+
+#         tabular.record('AverageDiscountedReturn', average_discounted_return)
+#         tabular.record('AverageReturn', np.mean(undiscounted_returns))
+#         tabular.record('StdReturn', np.std(undiscounted_returns))
+#         tabular.record('MaxReturn', np.max(undiscounted_returns))
+#         tabular.record('MinReturn', np.min(undiscounted_returns))
+#         tabular.record('TerminationRate', np.mean(termination))
+#         if success:
+#             tabular.record('SuccessRate', np.mean(success))
+#
+#     return undiscounted_returns
+
+
 def log_performance(itr, batch, discount, prefix='Evaluation'):
     """Evaluate the performance of an algorithm on a batch of episodes.
 
@@ -259,6 +304,19 @@ def log_performance(itr, batch, discount, prefix='Evaluation'):
 
     average_discounted_return = np.mean([rtn[0] for rtn in returns])
 
+
+    # HACK Account for the modification of the ShortMDP wrapper
+    stats = compute_shortrl_stats(itr, batch, discount)
+    if stats is not None:
+        with tabular.prefix(prefix + '/'):
+            tabular.record('AverageDiscountedModReturn', average_discounted_return)
+            tabular.record('AverageModReturn', np.mean(undiscounted_returns))
+            tabular.record('StdModReturn', np.std(undiscounted_returns))
+            tabular.record('MaxModReturn', np.max(undiscounted_returns))
+            tabular.record('MinModReturn', np.min(undiscounted_returns))
+        undiscounted_returns, average_discounted_return = stats  # original rewards
+
+
     with tabular.prefix(prefix + '/'):
         tabular.record('Iteration', itr)
         tabular.record('NumEpisodes', len(returns))
@@ -272,14 +330,10 @@ def log_performance(itr, batch, discount, prefix='Evaluation'):
         if success:
             tabular.record('SuccessRate', np.mean(success))
 
-
-    # LOG original performance too
-    log_shortrl_info(itr, batch, discount, prefix=prefix)
-
     return undiscounted_returns
 
 
-def log_shortrl_info(itr, batch, discount, prefix='Evaluation'):
+def compute_shortrl_stats(itr, batch, discount):
     """Evaluate the performance of an algorithm on a batch of episodes in terms of the *original* reward.
 
     Args:
@@ -294,9 +348,6 @@ def log_shortrl_info(itr, batch, discount, prefix='Evaluation'):
     """
     returns = []
     undiscounted_returns = []
-    termination = []
-    success = []
-
     if 'orig_reward' not in batch.env_infos:
         return
 
@@ -304,14 +355,6 @@ def log_shortrl_info(itr, batch, discount, prefix='Evaluation'):
         rewards = eps.env_infos['orig_reward']
         returns.append(discount_cumsum(rewards, discount))
         undiscounted_returns.append(sum(rewards))
-
     average_discounted_return = np.mean([rtn[0] for rtn in returns])
 
-    with tabular.prefix(prefix + '/'):
-        tabular.record('AverageDiscountedORIGINALReturn', average_discounted_return)
-        tabular.record('AverageORIGINALReturn', np.mean(undiscounted_returns))
-        tabular.record('StdORIGINALReturn', np.std(undiscounted_returns))
-        tabular.record('MaxORIGINALReturn', np.max(undiscounted_returns))
-        tabular.record('MinORIGINALReturn', np.min(undiscounted_returns))
-
-    return undiscounted_returns
+    return undiscounted_returns, average_discounted_return

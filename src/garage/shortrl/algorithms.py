@@ -42,7 +42,6 @@ def get_algo(env, discount,
              kl_constraint=0.05,  # kl constraint between policy updates
              gae_lambda=0.98,  # lambda of gae estimator
              lr_clip_range=0.2, # the limit on the likelihood ratio between policies (PPO)
-
              ):
     # return alg for env with discount
 
@@ -217,7 +216,7 @@ def get_algo(env, discount,
                    steps_per_epoch=steps_per_epoch,
                    policy_lr=policy_lr,
                    qf_lr=value_lr)
-                   
+
     elif algo_name=='TD3':
         from garage.np.exploration_policies import AddGaussianNoise
         from garage.np.policies import UniformRandomPolicy
@@ -276,7 +275,7 @@ def get_algo(env, discount,
 
     if use_gpu:
         prefer_gpu()
-        if callable(getattr(self, 'to', None)):
+        if callable(getattr(algo, 'to', None)):
             algo.to()
 
     return algo

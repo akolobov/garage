@@ -9,7 +9,7 @@ from garage.shortrl.algorithms import get_algo
 
 def init_policy_from_baseline(policy, baseline_policy,
                               *,
-                              use_bc=False,
+                              mode='copy',
                               # bc parameters
                               env=None,
                               n_epochs=1,
@@ -19,7 +19,7 @@ def init_policy_from_baseline(policy, baseline_policy,
                               policy_lr=1e-3,
                               n_workers=4,
                               ctxt=None):
-    if use_bc:
+    if mode=='bc':
         assert batch_size is not None
         algo = get_algo(env=env,
                       discount=1.0,
@@ -40,7 +40,7 @@ def init_policy_from_baseline(policy, baseline_policy,
                           ignore_shutdown=True)
         return algo.learner
 
-    else:
+    elif mode=='copy':
         # Try to set the init_policy as the baseline_policy
         # Support GaussianMLPPolicy, TanhGaussianMLPPolicy, DeterministicMLPPolicy
         if isinstance(policy._module, GaussianMLPBaseModule):
@@ -68,5 +68,8 @@ def init_policy_from_baseline(policy, baseline_policy,
                 raise NotImplementedError
         else:
             raise NotImplementedError
+
+    else:
+        raise ValueError
 
     return init_policy
