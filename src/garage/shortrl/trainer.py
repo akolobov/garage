@@ -1,5 +1,6 @@
 import os
 import time
+from collections import namedtuple
 from dowel import logger, tabular
 import numpy as np
 
@@ -26,12 +27,24 @@ class LambdaEnvUpdate(EnvUpdate):
         old_env._env._lambd = self._lambd
         return old_env
 
+
+def get_algodata_cls(algo):
+    class Cls:
+        def __init__(self, policy, vf, qf1, qf2):
+            self.policy = policy
+            self._value_function = vf
+            self._qf1 = qf1
+            self._qf2 = qf2
+    Cls.__name__ = type(algo).__name__
+    return Cls
+
 class Trainer(garageTrainer):
 
-    def setup(self, *args, discount, lambd, **kwargs):
+    def setup(self, *args, discount, lambd, save_mode='light', **kwargs):
         output = super().setup(*args, **kwargs)
         self._lambd = lambd if isinstance(lambd, LambdaScheduler) else LambdaScheduler(lambd)
         self.discount = discount
+        self.save_mode = save_mode
         return output
 
     @property
@@ -115,6 +128,56 @@ class Trainer(garageTrainer):
                     self.log_diagnostics(self._train_args.pause_for_plot)
                     logger.dump_all(self.step_itr)
                     tabular.clear()
+
+
+    # add a light saving mode (which saves only policy and value functions of an algorithm)
+    def save(self, epoch):
+        """Save snapshot of current batch.
+
+        Args:
+            epoch (int): Epoch.
+
+        Raises:
+            NotSetupError: if save() is called before the trainer is set up.
+
+        """
+        if not self._has_setup:
+            raise NotSetupError('Use setup() to setup trainer before saving.')
+
+        logger.log('Saving snapshot...')
+
+        if self.save_mode=='light':
+            # HACK
+            params = dict()
+            # Save arguments
+            params['seed'] = self._seed
+            params['train_args'] = self._train_args
+            params['stats'] = self._stats
+            AlgoData = get_algodata_cls(self._algo)
+            algodata = AlgoData(policy=self._algo.policy,
+                                  vf=getattr(self._algo, '_value_function', None),
+                                  qf1=getattr(self._algo, '_qf1', None),
+                                  qf2=getattr(self._algo, '_qf2', None))
+            params['algo'] = algodata
+
+        else:  # default behavior: save everything
+            params = dict()
+            # Save arguments
+            params['seed'] = self._seed
+            params['train_args'] = self._train_args
+            params['stats'] = self._stats
+
+            # Save states
+            params['env'] = self._env
+            params['algo'] = self._algo
+            params['n_workers'] = self._n_workers
+            params['worker_class'] = self._worker_class
+            params['worker_args'] = self._worker_args
+
+        self._snapshotter.save_itr_params(epoch, params)
+
+        logger.log('Saved')
+
 
     # include ignore_shutdown
     def train(self,

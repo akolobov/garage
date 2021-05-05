@@ -26,6 +26,7 @@ def train_agent(ctxt=None,
                 baseline_policy=None,  # when provided, it will be use to warmstart the learner policy
                 warmstart_mode='bc', # how the warmstart is done; 'bc' or 'copy';
                 warmstart_batch_size=None,
+                save_mode='light',
                 **kwargs,
                 ):
 
@@ -73,7 +74,7 @@ def train_agent(ctxt=None,
     ls_n_epochs = ls_n_epochs or n_epochs
     ls = getattr(lambda_schedulers, ls_cls)(init_lambd=lambd, n_epochs=ls_n_epochs)
     trainer = Trainer(ctxt)
-    trainer.setup(algo, env, lambd=ls, discount=discount)
+    trainer.setup(algo, env, lambd=ls, discount=discount, save_mode=save_mode)
 
     return trainer.train(n_epochs=n_epochs,
                          batch_size=batch_size,
@@ -85,6 +86,7 @@ def run_exp(*,
             snapshot_frequency=0,  # 0 means only taking the last snapshot
             log_prefix='agents',
             seed=1,
+            save_mode='light',
             **kwargs):
     snapshot_gap = snapshot_frequency if snapshot_frequency>0 else 1
     snapshot_mode = 'gap_and_last' if snapshot_frequency>0 else 'last'
@@ -92,9 +94,10 @@ def run_exp(*,
                             prefix='experiment/shortrl/'+log_prefix+'/'+exp_name,
                             snapshot_mode=snapshot_mode,
                             snapshot_gap=snapshot_gap,
+                            archive_launch_repo=save_mode!='light',
                             name=str(seed),
                             use_existing_dir=True)  # overwrites existing directory
-    return wrapped_train_agent(seed=seed, **kwargs)
+    return wrapped_train_agent(seed=seed, save_mode=save_mode, **kwargs)
 
 
 def simple_run_exp(*,
@@ -114,7 +117,6 @@ def simple_run_exp(*,
 
     heuristic = load_heuristic_from_snapshot(data_path, data_itr) if use_heuristic else None
     baseline_policy = load_policy_from_snapshot(data_path, data_itr) if warmstart_policy else None
-
     algo_name = kwargs['algo_name']
     env_name = kwargs['env_name']
     lambd = kwargs['lambd']
@@ -138,10 +140,11 @@ if __name__ == '__main__':
     parser.add_argument('-u', '--use_heuristic', type=str2bool, default=False)
     parser.add_argument('-w', '--warmstart_policy', type=str2bool, default=False)
     parser.add_argument('--data_path', type=str, default='data/local/experiment/shortrl/heuristics/PPO_Inver_1.0_F/1/')
-    parser.add_argument('--data_itr', type=str2bool, default=15)
+    parser.add_argument('--data_itr', type=int, default=15)
     # arguments for run_exp
     parser.add_argument('--snapshot_frequency', type=int, default=0)
     parser.add_argument('--log_prefix', type=str, default='agents')
+    parser.add_argument('--save_mode', type=str, default='light')
     # arguments for train_agent
     parser.add_argument('-e', '--env_name', type=str, default='InvertedDoublePendulum-v2')
     parser.add_argument('-d', '--discount', type=float, default=0.99)
@@ -155,7 +158,7 @@ if __name__ == '__main__':
     # arguments for get_algo
     parser.add_argument('-a', '--algo_name', type=str, default='PPO')
     parser.add_argument('--value_lr', type=float, default=5e-3)
-    parser.add_argument('--policy_lr', type=float, default=5e-4)
+    parser.add_argument('--policy_lr', type=float, default=1e-4)
     parser.add_argument('-n', '--n_workers', type=int, default=4)
     parser.add_argument('--use_gpu', type=str2bool, default=False)
     parser.add_argument('--sampler_mode', type=str, default='ray')

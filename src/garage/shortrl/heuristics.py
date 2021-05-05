@@ -1,14 +1,19 @@
 from garage.experiment import Snapshotter
 import torch
 from garage.shortrl.utils import torch_stop_grad
+import copy
+from functools import partial
 
-def vf_from_qfs(qfs, policy):
-    policy = copy.deepcopy(policy)
-    def vf(obs):
-        acs = policy.get_actions(obs)
-        pred_qs = [qf(obs, acs) for qf in qfs]
-        return torch.min(pred_qs)
-    return value_
+
+class _Vf:
+    def __init__(self, policy, qfs):
+        self.policy = policy
+        self.qfs = qfs
+    def __call__(self, obs):
+        acs = self.policy.get_actions(obs)[0]
+        acs = torch.Tensor(acs)
+        pred_qs = [qf(obs, acs) for qf in self.qfs]
+        return torch.min(torch.Tensor(pred_qs))
 
 def get_algo_vf(algo):
     # load heuristic
@@ -16,7 +21,7 @@ def get_algo_vf(algo):
         vf = algo._value_function
     elif type(algo).__name__ in ['SAC', 'TD3', 'CQL']:
         qfs = [algo._qf1, algo._qf2]
-        vf = vf_from_qfs(policy, qfs)
+        vf = _Vf(algo.policy, qfs)
     else:
         raise ValueError('Unsupported algorithm.')
     return vf
