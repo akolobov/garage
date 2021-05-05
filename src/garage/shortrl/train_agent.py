@@ -1,6 +1,8 @@
 import torch
 import gym
+import os
 import numpy as np
+
 
 from garage import wrap_experiment
 from garage.envs import GymEnv
@@ -84,18 +86,25 @@ def train_agent(ctxt=None,
 def run_exp(*,
             exp_name,
             snapshot_frequency=0,  # 0 means only taking the last snapshot
+            log_root=None,
             log_prefix='agents',
+            log_dir=None,
             seed=1,
             save_mode='light',
             **kwargs):
     snapshot_gap = snapshot_frequency if snapshot_frequency>0 else 1
     snapshot_mode = 'gap_and_last' if snapshot_frequency>0 else 'last'
+    prefix= os.path.join('shortrl',log_prefix,exp_name)
+    name=str(seed)
+    if log_root is not None and log_dir is None:  # mimc the behvaior of garage
+        log_dir = os.path.join(log_root,'data',prefix, name)
     wrapped_train_agent = wrap_experiment(train_agent,
-                            prefix='experiment/shortrl/'+log_prefix+'/'+exp_name,
+                            log_dir=log_dir,
+                            prefix=prefix,
                             snapshot_mode=snapshot_mode,
                             snapshot_gap=snapshot_gap,
                             archive_launch_repo=save_mode!='light',
-                            name=str(seed),
+                            name=name,
                             use_existing_dir=True)  # overwrites existing directory
     return wrapped_train_agent(seed=seed, save_mode=save_mode, **kwargs)
 
@@ -143,6 +152,7 @@ if __name__ == '__main__':
     parser.add_argument('--data_itr', type=int, default=15)
     # arguments for run_exp
     parser.add_argument('--snapshot_frequency', type=int, default=0)
+    parser.add_argument('--log_root', type=str, default=None)
     parser.add_argument('--log_prefix', type=str, default='agents')
     parser.add_argument('--save_mode', type=str, default='light')
     # arguments for train_agent
