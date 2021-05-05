@@ -200,7 +200,7 @@ def main(*,
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('-d','--logdir', help='The dir of experiments', type=str)
-    parser.add_argument('-v', '--value', help='The column name in the log.txt file', type=str, default='Evaluation/AverageORIGINALReturn')
+    parser.add_argument('-v', '--value', help='The column name in the log.txt file', type=str, default='Evaluation/AverageReturn')
     parser.add_argument('-o', '--output_dir', type=str, help='Output directory')
     parser.add_argument('-f,','--filename', type=str, default='', help='Output filename')
     parser.add_argument('--style', type=str, default='', help='Plotting style')
