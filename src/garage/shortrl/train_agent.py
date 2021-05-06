@@ -166,7 +166,7 @@ def simple_run_exp(*,
     lambd = kwargs['lambd']
 
     exp_name = algo_name+'_'+ env_name[:min(len(env_name),5)]+\
-                '_{}_{}'.format(lambd, str(use_heuristic)[0])
+                '_{}_{}_{}'.format(lambd, str(use_heuristic)[0], str(warmstart_policy)[0])
 
     return  run_exp(exp_name=exp_name,
             heuristic=heuristic,
