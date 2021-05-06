@@ -18,9 +18,10 @@ from garage.torch import as_torch
 from garage import log_performance, obtain_evaluation_episodes
 
 
-def get_algo(env, discount,
-             *,
+def get_algo(*,
+             env,
              algo_name,
+             discount=0.99,
              init_policy=None,  # learner policy
              n_epochs=None,  # number of training epochs
              batch_size=None,  # batch size of the env sampler
@@ -43,6 +44,7 @@ def get_algo(env, discount,
              kl_constraint=0.05,  # kl constraint between policy updates
              gae_lambda=0.98,  # lambda of gae estimator
              lr_clip_range=0.2, # the limit on the likelihood ratio between policies (PPO)
+             **kwargs,
              ):
     # return alg for env with discount
 

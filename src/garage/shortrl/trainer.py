@@ -21,10 +21,10 @@ class LambdaEnvUpdate(EnvUpdate):
         self._old_env_update = old_env_update
 
     def __call__(self, old_env=None):
-        old_env, _ = _apply_env_update(old_env, self._old_env_update)
         assert isinstance(old_env, GymEnv)
-        assert isinstance(old_env._env, ShortMDP)
-        old_env._env._lambd = self._lambd
+        old_env, _ = _apply_env_update(old_env, self._old_env_update)
+        if isinstance(old_env._env, ShortMDP):
+            old_env._env._lambd = self._lambd
         return old_env
 
 
@@ -52,11 +52,11 @@ class Trainer(garageTrainer):
         return self._lambd()
 
     def update_lambd(self):
-        self._lambd.update()
-        assert isinstance(self._env._env, ShortMDP)
-        self._env._env._lambd = self.lambd
-        with tabular.prefix('ShortRL' + '/'):
-            tabular.record('Lambda', self.lambd)
+        if  isinstance(self._env._env, ShortMDP):
+            self._lambd.update()
+            self._env._env._lambd = self.lambd
+            with tabular.prefix('ShortRL' + '/'):
+                tabular.record('Lambda', self.lambd)
 
     def obtain_episodes(self,
                          itr,

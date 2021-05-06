@@ -14,10 +14,44 @@ from garage.shortrl import lambda_schedulers
 from garage.shortrl.heuristics import load_policy_from_snapshot, load_heuristic_from_snapshot
 from garage.shortrl.pretrain import init_policy_from_baseline
 
+
+def pretrain_agent(ctxt=None,
+                   baseline_policy=None,  # when provided, it will be use to warmstart the learner policy
+                   warmstart_mode='bc', # how the warmstart is done; 'bc' or 'copy';
+                   warmstart_batch_size=None,
+                   save_mode='light',
+                   **kwargs,  # kwargs used by the train_agent
+                   ):
+
+    assert baseline_policy is not None
+
+    # Set the random seed
+    seed = kwargs.get('seed',1)
+    set_seed(seed)
+    # Wrap the gym env into our *gym* wrapper first and then into the standard garage wrapper.
+    env = GymEnv(gym.make(kwargs['env_name']))
+    # Get an algorithm template to get a compatible intial policy
+    algo_ = get_algo(env=env, n_epochs=1, **kwargs)
+    batch_size = warmstart_batch_size or kwargs.get('batch_size',10000)
+    init_policy = init_policy_from_baseline(
+                        algo_.policy,
+                        baseline_policy=baseline_policy,
+                        # bc parameters
+                        mode=warmstart_mode,
+                        env=env,
+                        n_epochs=1,
+                        policy_lr=1e-3,
+                        batch_size=batch_size,
+                        opt_n_grad_steps=batch_size,
+                        n_workers=kwargs.get('n_workers',4),
+                        ctxt=ctxt)
+    return init_policy
+
 def train_agent(ctxt=None,
                 env_name='InvertedDoublePendulum-v2', # gym env identifier
                 discount=0.99,  # oirginal discount
                 heuristic=None,  # a python function
+                init_policy=None,
                 lambd=1.0,  # extra discount
                 ls_n_epochs=None, # n_epoch for lambd to converge to 1.0 (default: n_epoch)
                 ls_cls='TanhLS', # class of LambdaScheduler
@@ -25,9 +59,6 @@ def train_agent(ctxt=None,
                 total_n_samples=50*10000,  # total number of samples
                 batch_size=10000,  # number of samples collected per update
                 ignore_shutdown=False,  # do not shutdown workers after training
-                baseline_policy=None,  # when provided, it will be use to warmstart the learner policy
-                warmstart_mode='bc', # how the warmstart is done; 'bc' or 'copy';
-                warmstart_batch_size=None,
                 save_mode='light',
                 **kwargs,
                 ):
@@ -42,28 +73,6 @@ def train_agent(ctxt=None,
     # Wrap the gym env into our *gym* wrapper first and then into the standard garage wrapper.
     env = ShortMDP(gym.make(env_name), heuristic, lambd=lambd, gamma=discount)
     env = GymEnv(env)
-
-    # Warmstart the intial policy
-    if baseline_policy is None:
-        init_policy = None
-    else:
-        algo_ = get_algo(env=env,
-                        discount=discount*lambd,  #  algorithm sees a shorter horizon,
-                        n_epochs=n_epochs,
-                        batch_size=batch_size,
-                        **kwargs)
-        init_policy = init_policy_from_baseline(
-                            algo_.policy,
-                            baseline_policy=baseline_policy,
-                            # bc parameters
-                            mode=warmstart_mode,
-                            env=env,
-                            n_epochs=1,
-                            policy_lr=1e-3,
-                            batch_size=warmstart_batch_size or batch_size,
-                            opt_n_grad_steps=batch_size,
-                            n_workers=kwargs.get('n_workers',4),
-                            ctxt=ctxt)
 
     # Initialize the algorithm
     algo = get_algo(env=env,
@@ -91,22 +100,48 @@ def run_exp(*,
             log_dir=None,
             seed=1,
             save_mode='light',
+            # pretain
+            baseline_policy=None,  # when provided, it will be use to warmstart the learner policy
+            warmstart_mode='bc', # how the warmstart is done; 'bc' or 'copy';
+            warmstart_batch_size=None,
             **kwargs):
+
     snapshot_gap = snapshot_frequency if snapshot_frequency>0 else 1
     snapshot_mode = 'gap_and_last' if snapshot_frequency>0 else 'last'
     prefix= os.path.join('shortrl',log_prefix,exp_name)
     name=str(seed)
-    if log_root is not None and log_dir is None:  # mimc the behvaior of garage
-        log_dir = os.path.join(log_root,'data',prefix, name)
+    log_root = log_root or '.'
+    # mimic garage's logging behavior
+    log_dir = os.path.join(log_root,'data','local','experiment',prefix, name)
+
+
+    # Pretrain agent
+    if baseline_policy is None:
+        init_policy = None
+    else:
+        pretrain_log_dir = os.path.join(log_dir,'pretrain_log')
+        wrapped_pretrain_agent = wrap_experiment(pretrain_agent,
+                                    log_dir=pretrain_log_dir,  # overwrite
+                                    snapshot_mode=snapshot_mode,
+                                    snapshot_gap=snapshot_gap,
+                                    archive_launch_repo=save_mode!='light',
+                                    use_existing_dir=True)  # overwrites existing directory
+        init_policy = wrapped_pretrain_agent(seed=seed, save_mode=save_mode,
+                        baseline_policy=baseline_policy,
+                        warmstart_mode=warmstart_mode,
+                        warmstart_batch_size=warmstart_batch_size,
+                        **kwargs)
+
+    # Train agent
     wrapped_train_agent = wrap_experiment(train_agent,
-                            log_dir=log_dir,
+                            log_dir=log_dir,  # overwrite
                             prefix=prefix,
                             snapshot_mode=snapshot_mode,
                             snapshot_gap=snapshot_gap,
                             archive_launch_repo=save_mode!='light',
                             name=name,
                             use_existing_dir=True)  # overwrites existing directory
-    return wrapped_train_agent(seed=seed, save_mode=save_mode, **kwargs)
+    wrapped_train_agent(seed=seed, save_mode=save_mode, init_policy=init_policy, **kwargs)
 
 
 def simple_run_exp(*,
