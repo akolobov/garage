@@ -5,18 +5,14 @@ from torch.nn import functional as F
 from dowel import tabular
 
 from garage.envs import GymEnv
-from garage.sampler import RaySampler
 from garage.torch import prefer_gpu
-from garage.replay_buffer import PathBuffer
-from garage.sampler import FragmentWorker, LocalSampler
-from garage.torch.policies import GaussianMLPPolicy, TanhGaussianMLPPolicy, DeterministicMLPPolicy
-from garage.torch.q_functions import ContinuousMLPQFunction
-from garage.torch.value_functions import GaussianMLPValueFunction
 from garage.torch.optimizers import OptimizerWrapper, ConjugateGradientOptimizer
 from garage.torch.algos import BC as garageBC
 from garage.torch import as_torch
 from garage import log_performance, obtain_evaluation_episodes
 
+from garage.shortrl import rl_utils as ru
+from functools import partial
 
 def get_algo(*,
              env,
@@ -52,73 +48,34 @@ def get_algo(*,
     assert n_epochs is not None
     assert batch_size is not None
 
-    def get_mlp_policy(stochastic, use_tanh):
-        if init_policy is not None:
-            return init_policy
+    # Define some helper functions
+    if init_policy is None:
+        get_mlp_policy = partial(ru.get_mlp_policy,
+                                env=env,
+                                hidden_sizes=policy_network_hidden_sizes,
+                                hidden_nonlinearity=policy_network_hidden_nonlinearity)
+    else:
+         get_mlp_policy = lambda *args, **kwargs : init_policy
 
-        if stochastic and use_tanh:
-            return TanhGaussianMLPPolicy(
-                        env_spec=env.spec,
-                        hidden_sizes=policy_network_hidden_sizes,
-                        hidden_nonlinearity=policy_network_hidden_nonlinearity,
-                        output_nonlinearity=None,
-                        min_std=np.exp(-20.),
-                        max_std=np.exp(2.))
+    get_mlp_value = partial(ru.get_mlp_value,
+                            env=env,
+                            hidden_sizes=value_natwork_hidden_sizes,
+                            hidden_nonlinearity=value_network_hidden_nonlinearity)
 
-        if stochastic and not use_tanh:
-            return GaussianMLPPolicy(env.spec,
-                        hidden_sizes=policy_network_hidden_sizes,
-                        hidden_nonlinearity=policy_network_hidden_nonlinearity,
-                        output_nonlinearity=None)
+    get_sampler = partial(ru.get_sampler,
+                          env=env,
+                          sampler_mode=sampler_mode,
+                          n_workers=n_workers)
 
-        if not stochastic:
-            return DeterministicMLPPolicy(
-                        env_spec=env.spec,
-                        hidden_sizes=policy_network_hidden_sizes,
-                        hidden_nonlinearity=policy_network_hidden_nonlinearity,
-                        output_nonlinearity=torch.tanh if use_tanh else None)
+    get_replay_buferr = ru.get_replay_buferr
+    get_wrapped_optimizer = partial(ru.get_optimizer,
+                                    max_optimization_epochs= max(1,int(opt_n_grad_steps*opt_minibatch_size/batch_size)),
+                                    minibatch_size=opt_minibatch_size)
 
-    def get_mlp_value(form='Q'):
-        if form=='Q':
-            return ContinuousMLPQFunction(
-                    env_spec=env.spec,
-                    hidden_sizes=value_natwork_hidden_sizes,
-                    hidden_nonlinearity=value_network_hidden_nonlinearity,
-                    output_nonlinearity=None)
-        if form=='V':
-            return GaussianMLPValueFunction(
-                    env_spec=env.spec,
-                    hidden_sizes=policy_network_hidden_sizes,
-                    hidden_nonlinearity=value_network_hidden_nonlinearity,
-                    output_nonlinearity=None)
-
-    def get_sampler(policy):
-        if sampler_mode=='ray':
-            return RaySampler(agents=policy,
-                              envs=env,
-                              max_episode_length=env.spec.max_episode_length,
-                              n_workers=n_workers)
-        elif n_workers==1:
-            return LocalSampler(agents=policy,
-                                envs=env,
-                                max_episode_length=env.spec.max_episode_length,
-                                worker_class=FragmentWorker)
-        else:
-            raise ValueError('Required sampler is unavailable.')
-
-    def get_replay_buferr():
-        return PathBuffer(capacity_in_transitions=int(1e6))
-
-    def get_wrapped_optimizer(obj, lr, name='ADAM'):
-        max_optimization_epochs = max(1, int(opt_n_grad_steps*opt_minibatch_size/batch_size))
-        return OptimizerWrapper((torch.optim.Adam, dict(lr=lr)),
-                                 obj,
-                                 max_optimization_epochs=max_optimization_epochs,
-                                 minibatch_size=opt_minibatch_size)
-
+    # Create algo
     if algo_name=='PPO':
         from garage.torch.algos import PPO
-        policy = get_mlp_policy(stochastic=True, use_tanh=False)
+        policy = get_mlp_policy(stochastic=True, clip_output=False)
         value_function = get_mlp_value('V')
         sampler = get_sampler(policy)
         algo = PPO(env_spec=env.spec,
@@ -137,7 +94,7 @@ def get_algo(*,
 
     elif algo_name=='TRPO':
         from garage.torch.algos import TRPO
-        policy = get_mlp_policy(stochastic=True, use_tanh=False)
+        policy = get_mlp_policy(stochastic=True, clip_output=False)
         value_function = get_mlp_value('V')
         sampler = get_sampler(policy)
         policy_optimizer = OptimizerWrapper(
@@ -158,7 +115,7 @@ def get_algo(*,
 
     elif algo_name=='VPG':
         from garage.torch.algos import VPG
-        policy = get_mlp_policy(stochastic=True, use_tanh=False)
+        policy = get_mlp_policy(stochastic=True, clip_output=False)
         value_function = get_mlp_value('V')
         sampler = get_sampler(policy)
         algo = VPG(env_spec=env.spec,
@@ -175,7 +132,7 @@ def get_algo(*,
 
     elif algo_name=='SAC':
         from garage.torch.algos import SAC
-        policy = get_mlp_policy(stochastic=True, use_tanh=True)
+        policy = get_mlp_policy(stochastic=True, clip_output=True)
         qf1 = get_mlp_value('Q')
         qf2 = get_mlp_value('Q')
         replay_buffer = get_replay_buferr()
@@ -199,7 +156,7 @@ def get_algo(*,
 
     elif algo_name=='CQL':
         from garage.torch.algos import CQL
-        policy = get_mlp_policy(stochastic=True, use_tanh=True)
+        policy = get_mlp_policy(stochastic=True, clip_output=True)
         qf1 = get_mlp_value('Q')
         qf2 = get_mlp_value('Q')
         replay_buffer = get_replay_buferr()
@@ -226,7 +183,7 @@ def get_algo(*,
         from garage.np.policies import UniformRandomPolicy
         from garage.torch.algos import TD3
         num_timesteps = n_epochs * steps_per_epoch * batch_size
-        policy = get_mlp_policy(stochastic=False, use_tanh=True)
+        policy = get_mlp_policy(stochastic=False, clip_output=True)
         exploration_policy = AddGaussianNoise(env.spec,
                                               policy,
                                               total_timesteps=num_timesteps,

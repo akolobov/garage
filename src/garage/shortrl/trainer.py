@@ -16,20 +16,6 @@ from garage.shortrl.lambda_schedulers import LambdaScheduler
 from garage.shortrl.utils import read_attr_from_csv
 
 
-class LambdaEnvUpdate(EnvUpdate):
-    """ Update the lambda value of a ShortMDP environment. """
-    def __init__(self, lambd, old_env_update):
-        self._lambd = lambd
-        self._old_env_update = old_env_update
-
-    def __call__(self, old_env=None):
-        assert isinstance(old_env, GymEnv)
-        old_env, _ = _apply_env_update(old_env, self._old_env_update)
-        if isinstance(old_env._env, ShortMDP):
-            old_env._env._lambd = self._lambd
-        return old_env
-
-
 def get_algodata_cls(algo):
     class Cls:
         def __init__(self, policy, vf, qf1, qf2):
@@ -157,7 +143,7 @@ class Trainer(garageTrainer):
         if not ignore_shutdown:
             self._shutdown_worker()
 
-        ### HACK return other statics
+        ### HACK Return other statistics ###
         progress = self._read_progress(self.return_attr)
         if self.return_mode == 'average':
             score = np.mean(progress)
@@ -177,14 +163,26 @@ class Trainer(garageTrainer):
 
 
 
+class LambdaEnvUpdate(EnvUpdate):
+    """ Update the lambda value of a ShortMDP environment. """
+    def __init__(self, lambd, old_env_update):
+        self._lambd = lambd
+        self._old_env_update = old_env_update
+
+    def __call__(self, old_env=None):
+        assert isinstance(old_env, GymEnv)
+        old_env, _ = _apply_env_update(old_env, self._old_env_update)
+        if isinstance(old_env._env, ShortMDP):
+            old_env._env._lambd = self._lambd
+        return old_env
+
 
 class SRLTrainer(Trainer):
 
-    def setup(self, *args, discount, lambd, save_mode='light', **kwargs):
+    def setup(self, *args, discount, lambd, **kwargs):
         output = super().setup(*args, **kwargs)
         self._lambd = lambd if isinstance(lambd, LambdaScheduler) else LambdaScheduler(lambd)
         self.discount = discount
-        self.save_mode = save_mode
         return output
 
     @property
@@ -192,22 +190,23 @@ class SRLTrainer(Trainer):
         return self._lambd()
 
     def update_lambd(self):
-        if  isinstance(self._env._env, ShortMDP):
+        if isinstance(self._env._env, ShortMDP):
             self._lambd.update()
             self._env._env._lambd = self.lambd
             with tabular.prefix('ShortRL' + '/'):
                 tabular.record('Lambda', self.lambd)
 
     def obtain_episodes(self,
-                         itr,
-                         batch_size=None,
-                         agent_update=None,
-                         env_update=None):
+                        itr,
+                        batch_size=None,
+                        agent_update=None,
+                        env_update=None):
         # Update the discount factor of env and algo
         try:
             self._algo.discount = self.discount*self.lambd
         except AttributeError:
             self._algo._discount = self.discount*self.lambd
+        # Update the lambda value stored in envs
         env_update = LambdaEnvUpdate(self.lambd, env_update)
         return super().obtain_episodes(itr,
                                        batch_size=batch_size,
@@ -252,8 +251,8 @@ class SRLTrainer(Trainer):
             with logger.prefix('epoch #%d | ' % epoch):
                 yield epoch
 
-                ### HACK Update lambda ###
-                self.update_lambd()
+                self.update_lambd()  ### HACK Update lambda scheduler ###
+
                 save_episode = (self.step_episode
                                 if self._train_args.store_episodes else None)
 
@@ -270,17 +269,13 @@ class SRLTrainer(Trainer):
 
 
 
-
-
 from garage._dtypes import EpisodeBatch
+class BatchTrainer(Trainer):
 
-
-class BatchTrainer(garageTrainer):
-
-    def setup(self, *args, episode_batch:EpisodeBatch, save_mode='light', **kwargs):
+    def setup(self, *args, episode_batch:EpisodeBatch, **kwargs):
         output = super().setup(*args, **kwargs)
+        assert isinstance(episode_batch, EpisodeBatch)
         self.episode_batch = episode_batch
-        self.save_mode = save_mode
         return output
 
     def obtain_episodes(self,
@@ -290,6 +285,3 @@ class BatchTrainer(garageTrainer):
                         env_update=None):
 
         return self.episode_batch
-
-    save = Trainer.save
-    train = Trainer.train
