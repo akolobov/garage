@@ -7,7 +7,7 @@ import numpy as np
 from garage import wrap_experiment
 from garage.envs import GymEnv
 from garage.experiment.deterministic import set_seed
-from garage.shortrl.trainer import Trainer
+from garage.shortrl.trainer import SRLTrainer as Trainer
 from garage.shortrl.env_wrapper import ShortMDP
 from garage.shortrl.algorithms import get_algo
 from garage.shortrl import lambda_schedulers

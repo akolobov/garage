@@ -4,7 +4,7 @@ from dowel import tabular
 from garage.torch.policies import TanhGaussianMLPPolicy, GaussianMLPPolicy, DeterministicMLPPolicy
 from garage.torch.modules.gaussian_mlp_module import GaussianMLPBaseModule, GaussianMLPModule
 from garage.torch.modules.mlp_module import MLPModule
-from garage.shortrl.trainer import Trainer
+from garage.shortrl.trainer import SRLTrainer as Trainer
 from garage.shortrl.algorithms import get_algo
 
 def init_policy_from_baseline(policy, baseline_policy,
@@ -34,10 +34,9 @@ def init_policy_from_baseline(policy, baseline_policy,
                       n_workers=n_workers)
         trainer = Trainer(ctxt)
         trainer.setup(algo, env, lambd=1.0, discount=1.0)
-        with tabular.prefix('Pretraining' + '/'):
-            trainer.train(n_epochs=n_epochs,
-                          batch_size=batch_size,
-                          ignore_shutdown=True)
+        trainer.train(n_epochs=n_epochs,
+                      batch_size=batch_size,
+                      ignore_shutdown=True)
         return algo.learner
 
     elif mode=='copy':

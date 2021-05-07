@@ -16,3 +16,23 @@ def torch_stop_grad(torch_value):
         with torch.no_grad():
             return torch_value(torch.Tensor(x))
     return wrapped_fun
+
+
+import numpy as np
+import csv
+def read_attr_from_csv(csv_path, attr, delimiter=','):
+    with open(csv_path) as csv_file:
+        reader = csv.reader(csv_file, delimiter=delimiter)
+        try:
+            row = next(reader)
+        except Exception:
+            return None
+        if attr not in row:
+            return None
+        idx = row.index(attr)  # the column number for this attribute
+        vals = []
+        for row in reader:
+            vals.append(row[idx])
+
+    vals = [np.nan if v=='' else v for v in vals]
+    return np.array(vals, dtype=np.float64)
