@@ -37,6 +37,7 @@ def get_algo(*,
              #
              # algorithm specific hyperparmeters
              expert_policy=None,  # for BC
+             episode_batch=None,  # for batch algorithm
              kl_constraint=0.05,  # kl constraint between policy updates
              gae_lambda=0.98,  # lambda of gae estimator
              lr_clip_range=0.2, # the limit on the likelihood ratio between policies (PPO)
@@ -218,19 +219,28 @@ def get_algo(*,
                   buffer_batch_size=opt_minibatch_size)
 
     elif algo_name=='BC':
-        sampler=get_sampler(expert_policy)
+        if episode_batch is not None:  # for compatibility
+            # episode_batch = ru.collect_episode_batch(
+            #                     policy=expert_policy,
+            #                     env=env,
+            #                     n_workers=n_workers,
+            #                     batch_size=batch_size)
+            sampler = ru.BatchSampler(episode_batch=episode_batch)
+        else:
+            sampler=get_sampler(expert_policy)
+
         assert init_policy is not None
         assert expert_policy is not None
         algo = BC(env.spec,
-                init_policy,
-                source=expert_policy,
-                sampler=sampler,
-                batch_size=batch_size,
-                gradient_steps_per_itr=opt_n_grad_steps,
-                minibatch_size=opt_minibatch_size,
-                policy_lr=policy_lr,
-                loss='mse', #'log_prob' if isinstance(policy,StochasticPolicy) else 'mse'
-                )
+                  init_policy,
+                  source=expert_policy,
+                  sampler=sampler,
+                  batch_size=batch_size,
+                  gradient_steps_per_itr=opt_n_grad_steps,
+                  minibatch_size=opt_minibatch_size,
+                  policy_lr=policy_lr,
+                  loss='mse', #'log_prob' if isinstance(policy,StochasticPolicy) else 'mse'
+                  )
 
     else:
         raise ValueError('Unknown algo_name')
