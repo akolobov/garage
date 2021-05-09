@@ -161,8 +161,6 @@ class Trainer(garageTrainer):
         score = read_attr_from_csv(csv_path, attr)
         return score
 
-
-
 class LambdaEnvUpdate(EnvUpdate):
     """ Update the lambda value of a ShortMDP environment. """
     def __init__(self, lambd, old_env_update):
@@ -179,7 +177,7 @@ class LambdaEnvUpdate(EnvUpdate):
 
 class SRLTrainer(Trainer):
 
-    def setup(self, *args, discount, lambd, **kwargs):
+    def setup(self, *args, discount=1.0, lambd=1.0, **kwargs):
         output = super().setup(*args, **kwargs)
         self._lambd = lambd if isinstance(lambd, LambdaScheduler) else LambdaScheduler(lambd)
         self.discount = discount
@@ -190,11 +188,13 @@ class SRLTrainer(Trainer):
         return self._lambd()
 
     def update_lambd(self):
-        if isinstance(self._env._env, ShortMDP):
-            self._lambd.update()
-            self._env._env._lambd = self.lambd
-            with tabular.prefix('ShortRL' + '/'):
-                tabular.record('Lambda', self.lambd)
+        if self._env is not None:  # to account for batch mode
+            if isinstance(self._env._env, ShortMDP):
+                with tabular.prefix('ShortRL' + '/'):
+                    tabular.record('Lambda', self.lambd)
+                self._lambd.update()
+                self._env._env._lambd = self.lambd
+
 
     def obtain_episodes(self,
                         itr,
@@ -266,22 +266,3 @@ class SRLTrainer(Trainer):
                     self.log_diagnostics(self._train_args.pause_for_plot)
                     logger.dump_all(self.step_itr)
                     tabular.clear()
-
-
-
-from garage._dtypes import EpisodeBatch
-class BatchTrainer(Trainer):
-
-    def setup(self, *args, episode_batch:EpisodeBatch, **kwargs):
-        output = super().setup(*args, **kwargs)
-        assert isinstance(episode_batch, EpisodeBatch)
-        self.episode_batch = episode_batch
-        return output
-
-    def obtain_episodes(self,
-                        itr,
-                        batch_size=None,
-                        agent_update=None,
-                        env_update=None):
-
-        return self.episode_batch

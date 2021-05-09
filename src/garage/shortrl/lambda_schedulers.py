@@ -4,7 +4,7 @@ class LambdaScheduler:
 
     def __init__(self, init_lambd, n_epochs=50):
         self._n_epochs = n_epochs
-        self._itr = 1
+        self._itr = 0
         self._init_lambd = init_lambd
         self._lambd = init_lambd
 
@@ -38,4 +38,6 @@ class LinearLS(LambdaScheduler):
 class TanhLS(LinearLS):
     @property
     def _delta(self):  # a value in [0,1]
-        return 0.5*(1+np.tanh(self._itr/self._n_epochs*np.arctanh(0.99)))
+        limit = 0.99
+        delta = np.tanh(self._itr/(self._n_epochs-1)*np.arctanh(limit)) / limit
+        return min(1.0, delta)

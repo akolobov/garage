@@ -28,7 +28,7 @@ def get_algo_vf(algo):
 
 def get_algo_policy(algo):
     # load policy
-    if type(algo).__name__ in ['PPO','TRPO','VPG','TD3','SAC', 'CQL']:
+    if type(algo).__name__ in ['PPO','TRPO','VPG','TD3','SAC', 'CQL', 'BC']:
         policy = algo.policy
     else:
         raise ValueError('Unsupported algorithm.')

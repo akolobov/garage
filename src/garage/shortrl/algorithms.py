@@ -15,15 +15,17 @@ from garage.shortrl import rl_utils as ru
 from functools import partial
 
 def get_algo(*,
-             env,
+             # required params
              algo_name,
-             discount=0.99,
+             discount,
+             env=None, # either env or episode_batch needs to be provided
+             episode_batch=None,  # when provided, the algorithm is run in batch mode
+             batch_size,  # batch size of the env sampler
+             # optimization params
              init_policy=None,  # learner policy
-             n_epochs=None,  # number of training epochs
-             batch_size=None,  # batch size of the env sampler
-             policy_network_hidden_sizes=(64, 64),
+             policy_network_hidden_sizes=(256, 128),
              policy_network_hidden_nonlinearity=torch.tanh,
-             value_natwork_hidden_sizes=(64, 64),
+             value_natwork_hidden_sizes=(256, 128),
              value_network_hidden_nonlinearity=torch.tanh,
              policy_lr=2e-4,  # optimization stepsize for policy update
              value_lr=5e-3,  # optimization stepsize for value regression
@@ -31,13 +33,14 @@ def get_algo(*,
              opt_n_grad_steps=1000,  # number of gradient updates
              num_evaluation_episodes=10, # number of episodes to evaluate (only affect off-policy algorithms)
              steps_per_epoch=1,  # number of internal epochs steps per epoch
+             n_epochs=None,  # number of training epochs
+             #
              n_workers=4,  # number of workers for data collection
              use_gpu=False,  # try to use gpu, if implemented
              sampler_mode='ray',
              #
              # algorithm specific hyperparmeters
              expert_policy=None,  # for BC
-             episode_batch=None,  # for batch algorithm
              kl_constraint=0.05,  # kl constraint between policy updates
              gae_lambda=0.98,  # lambda of gae estimator
              lr_clip_range=0.2, # the limit on the likelihood ratio between policies (PPO)
@@ -45,41 +48,48 @@ def get_algo(*,
              ):
     # return alg for env with discount
 
-    assert isinstance(env, GymEnv)
-    assert n_epochs is not None
+    assert isinstance(env, GymEnv) or env is None
+    assert not (env is None and episode_batch is None)
     assert batch_size is not None
 
-    # Define some helper functions
+    # Define some helper functions used by most algorithms
+    if episode_batch is None:
+        get_sampler = partial(ru.get_sampler,
+                              env=env,
+                              sampler_mode=sampler_mode,
+                              n_workers=n_workers)
+        env_spec = env.spec
+    else:
+        sampler = ru.BatchSampler(episode_batch=episode_batch)
+        get_sampler = lambda p: sampler
+        env_spec = episode_batch.env_spec
+
     if init_policy is None:
         get_mlp_policy = partial(ru.get_mlp_policy,
-                                env=env,
-                                hidden_sizes=policy_network_hidden_sizes,
-                                hidden_nonlinearity=policy_network_hidden_nonlinearity)
+                                 env_spec=env_spec,
+                                 hidden_sizes=policy_network_hidden_sizes,
+                                 hidden_nonlinearity=policy_network_hidden_nonlinearity)
     else:
-         get_mlp_policy = lambda *args, **kwargs : init_policy
+         get_mlp_policy = lambda *a, **kw : init_policy
 
     get_mlp_value = partial(ru.get_mlp_value,
-                            env=env,
+                            env_spec=env_spec,
                             hidden_sizes=value_natwork_hidden_sizes,
                             hidden_nonlinearity=value_network_hidden_nonlinearity)
 
-    get_sampler = partial(ru.get_sampler,
-                          env=env,
-                          sampler_mode=sampler_mode,
-                          n_workers=n_workers)
-
     get_replay_buferr = ru.get_replay_buferr
+    max_optimization_epochs = max(1,int(opt_n_grad_steps*opt_minibatch_size/batch_size))
     get_wrapped_optimizer = partial(ru.get_optimizer,
-                                    max_optimization_epochs= max(1,int(opt_n_grad_steps*opt_minibatch_size/batch_size)),
+                                    max_optimization_epochs=max_optimization_epochs,
                                     minibatch_size=opt_minibatch_size)
 
-    # Create algo
+    # Create an algorithm instance
     if algo_name=='PPO':
         from garage.torch.algos import PPO
         policy = get_mlp_policy(stochastic=True, clip_output=False)
         value_function = get_mlp_value('V')
         sampler = get_sampler(policy)
-        algo = PPO(env_spec=env.spec,
+        algo = PPO(env_spec=env_spec,
                    policy=policy,
                    value_function=value_function,
                    sampler=sampler,
@@ -101,7 +111,7 @@ def get_algo(*,
         policy_optimizer = OptimizerWrapper(
                             (ConjugateGradientOptimizer, dict(max_constraint_value=kl_constraint)),
                             policy)
-        algo = TRPO(env_spec=env.spec,
+        algo = TRPO(env_spec=env_spec,
                     policy=policy,
                     value_function=value_function,
                     sampler=sampler,
@@ -119,7 +129,7 @@ def get_algo(*,
         policy = get_mlp_policy(stochastic=True, clip_output=False)
         value_function = get_mlp_value('V')
         sampler = get_sampler(policy)
-        algo = VPG(env_spec=env.spec,
+        algo = VPG(env_spec=env_spec,
                     policy=policy,
                     value_function=value_function,
                     sampler=sampler,
@@ -138,7 +148,7 @@ def get_algo(*,
         qf2 = get_mlp_value('Q')
         replay_buffer = get_replay_buferr()
         sampler = get_sampler(policy)
-        algo = SAC(env_spec=env.spec,
+        algo = SAC(env_spec=env_spec,
                    policy=policy,
                    qf1=qf1,
                    qf2=qf2,
@@ -162,7 +172,7 @@ def get_algo(*,
         qf2 = get_mlp_value('Q')
         replay_buffer = get_replay_buferr()
         sampler = get_sampler(policy)
-        algo = CQL(env_spec=env.spec,
+        algo = CQL(env_spec=env_spec,
                    policy=policy,
                    qf1=qf1,
                    qf2=qf2,
@@ -183,19 +193,20 @@ def get_algo(*,
         from garage.np.exploration_policies import AddGaussianNoise
         from garage.np.policies import UniformRandomPolicy
         from garage.torch.algos import TD3
+        n_epochs = n_epochs or np.inf
         num_timesteps = n_epochs * steps_per_epoch * batch_size
         policy = get_mlp_policy(stochastic=False, clip_output=True)
-        exploration_policy = AddGaussianNoise(env.spec,
+        exploration_policy = AddGaussianNoise(env_spec,
                                               policy,
                                               total_timesteps=num_timesteps,
                                               max_sigma=0.1,
                                               min_sigma=0.1)
-        uniform_random_policy = UniformRandomPolicy(env.spec)
+        uniform_random_policy = UniformRandomPolicy(env_spec)
         qf1 = get_mlp_value('Q')
         qf2 = get_mlp_value('Q')
         sampler = get_sampler(exploration_policy)
         replay_buffer = get_replay_buferr()
-        algo = TD3(env_spec=env.spec,
+        algo = TD3(env_spec=env_spec,
                   policy=policy,
                   qf1=qf1,
                   qf2=qf2,
@@ -219,19 +230,10 @@ def get_algo(*,
                   buffer_batch_size=opt_minibatch_size)
 
     elif algo_name=='BC':
-        if episode_batch is not None:  # for compatibility
-            # episode_batch = ru.collect_episode_batch(
-            #                     policy=expert_policy,
-            #                     env=env,
-            #                     n_workers=n_workers,
-            #                     batch_size=batch_size)
-            sampler = ru.BatchSampler(episode_batch=episode_batch)
-        else:
-            sampler=get_sampler(expert_policy)
-
+        sampler=get_sampler(expert_policy)
         assert init_policy is not None
         assert expert_policy is not None
-        algo = BC(env.spec,
+        algo = BC(env_spec,
                   init_policy,
                   source=expert_policy,
                   sampler=sampler,
@@ -241,7 +243,6 @@ def get_algo(*,
                   policy_lr=policy_lr,
                   loss='mse', #'log_prob' if isinstance(policy,StochasticPolicy) else 'mse'
                   )
-
     else:
         raise ValueError('Unknown algo_name')
 

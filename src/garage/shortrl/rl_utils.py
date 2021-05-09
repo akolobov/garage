@@ -11,19 +11,18 @@ from garage.sampler import FragmentWorker, LocalSampler, RaySampler
 from garage.torch.optimizers import OptimizerWrapper
 
 
-
 def get_mlp_policy(*,
-                   env,
+                   env_spec,
                    stochastic=True,
                    clip_output=False,
-                   hidden_sizes=(64, 64),
+                   hidden_sizes=(256, 128),
                    hidden_nonlinearity=torch.tanh,
                    min_std=np.exp(-20.),
                    max_std=np.exp(2.)):
 
     if stochastic and clip_output:
         return TanhGaussianMLPPolicy(
-                    env_spec=env.spec,
+                    env_spec=env_spec,
                     hidden_sizes=hidden_sizes,
                     hidden_nonlinearity=hidden_nonlinearity,
                     output_nonlinearity=None,
@@ -31,14 +30,14 @@ def get_mlp_policy(*,
                     max_std=max_std)
 
     if stochastic and not clip_output:
-        return GaussianMLPPolicy(env.spec,
+        return GaussianMLPPolicy(env_spec,
                     hidden_sizes=hidden_sizes,
                     hidden_nonlinearity=hidden_nonlinearity,
                     output_nonlinearity=None)
 
     if not stochastic:
         return DeterministicMLPPolicy(
-                    env_spec=env.spec,
+                    env_spec=env_spec,
                     hidden_sizes=hidden_sizes,
                     hidden_nonlinearity=hidden_nonlinearity,
                     output_nonlinearity=torch.tanh if use_tanh else None)
@@ -46,22 +45,23 @@ def get_mlp_policy(*,
 
 def get_mlp_value(form='Q',
                   *,
-                  env,
-                  hidden_sizes=(64, 64),
+                  env_spec,
+                  hidden_sizes=(256, 128),
                   hidden_nonlinearity=torch.tanh
                   ):
     if form=='Q':
         return ContinuousMLPQFunction(
-                env_spec=env.spec,
+                env_spec=env_spec,
                 hidden_sizes=hidden_sizes,
                 hidden_nonlinearity=hidden_nonlinearity,
                 output_nonlinearity=None)
     if form=='V':
         return GaussianMLPValueFunction(
-                env_spec=env.spec,
+                env_spec=env_spec,
                 hidden_sizes=hidden_sizes,
                 hidden_nonlinearity=hidden_nonlinearity,
-                output_nonlinearity=None)
+                output_nonlinearity=None,
+                learn_std=False)
 
 
 def collect_episode_batch(policy, *,
@@ -77,13 +77,22 @@ def collect_episode_batch(policy, *,
 
 from garage.sampler import Sampler
 import copy
+from garage._dtypes import EpisodeBatch
 class BatchSampler(Sampler):
 
     def __init__(self, episode_batch):
         self.episode_batch = episode_batch
 
-    def obtain_samples(self, *args, **kwargs):
-        return copy.deepcopy(self.episode_batch)
+    def obtain_samples(self, itr, num_samples, agent_update, env_update=None):
+        # Sample num_samples from episode_batch
+        ns = self.episode_batch.lengths
+        ind = np.random.permutation(len(ns))
+        cumsum_permuted_ns = np.cumsum(ns[ind])
+        itemindex = np.where(cumsum_permuted_ns>=num_samples)[0][0]
+        ld = self.episode_batch.to_list()
+        ld = [ld[i] for i in ind[:itemindex+1].tolist()]
+        sampled_eb = EpisodeBatch.from_list(self.episode_batch.env_spec,ld)
+        return sampled_eb
 
     def shutdown_worker(self):
         pass

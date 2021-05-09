@@ -5,7 +5,6 @@ from garage.torch.policies import TanhGaussianMLPPolicy, GaussianMLPPolicy, Dete
 from garage.torch.modules.gaussian_mlp_module import GaussianMLPBaseModule, GaussianMLPModule
 from garage.torch.modules.mlp_module import MLPModule
 from garage.shortrl.trainer import SRLTrainer as Trainer
-from garage.shortrl.trainer import BatchTrainer
 from garage.shortrl.algorithms import get_algo
 
 

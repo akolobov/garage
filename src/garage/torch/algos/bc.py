@@ -81,7 +81,6 @@ class BC(RLAlgorithm):
         # Public fields for sampling.
         self._env_spec = env_spec
         self.exploration_policy = None
-        self.policy = None
         self.max_episode_length = env_spec.max_episode_length
         self._sampler = sampler
         if isinstance(self._source, Policy):
