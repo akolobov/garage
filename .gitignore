@@ -154,3 +154,9 @@ garage/config_personal.py
 sandbox/
 MUJOCO_LOG.TXT
 *.pkl
+
+# log
+snapshots/
+events.out.*
+experiment.json
+*.pdf

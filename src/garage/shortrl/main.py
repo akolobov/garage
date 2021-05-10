@@ -200,6 +200,7 @@ def pretrain_policy(data_path,
             algo = get_algo(algo_name=target_algo_name,
                             discount=discount,  #  algorithm sees a shorter horizon,
                             episode_batch=episode_batch,
+                            batch_size=1,
                             **kwargs)
             return algo.policy
         expert_policy = load_policy_from_snapshot(data_path, data_itr) if algo_name=='BC' else None
@@ -381,8 +382,8 @@ if __name__ == '__main__':
     parser.add_argument('-b', '--batch_size', type=int, default=10000)
     parser.add_argument('-s', '--seed', type=int, default=1)
     # offline batch data
-    parser.add_argument('--data_path', type=str, default='data/heuristic/PPO_Inver_1.0_F/1/')
-    parser.add_argument('--data_itr', type=int, default=15)
+    parser.add_argument('--data_path', type=str, default='snapshots/SAC_Inver_1.0_F_F/120032374/')
+    parser.add_argument('--data_itr', type=int, default=8)
     parser.add_argument('--episode_batch_size', type=int, default=50000)
     # pretrain policy
     parser.add_argument('-w', '--warmstart_policy', type=str2bool, default=False)
