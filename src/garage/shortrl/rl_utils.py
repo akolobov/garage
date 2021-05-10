@@ -15,7 +15,7 @@ def get_mlp_policy(*,
                    env_spec,
                    stochastic=True,
                    clip_output=False,
-                   hidden_sizes=(256, 128),
+                   hidden_sizes=(64, 64),
                    hidden_nonlinearity=torch.tanh,
                    min_std=np.exp(-20.),
                    max_std=np.exp(2.)):
