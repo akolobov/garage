@@ -403,8 +403,8 @@ if __name__ == '__main__':
     parser.add_argument('--log_prefix', type=str, default='agents')
     parser.add_argument('--save_mode', type=str, default='light')
     # kwargs for get_algo
-    parser.add_argument('--value_lr', type=float, default=5e-3)
-    parser.add_argument('--policy_lr', type=float, default=1e-4)
+    parser.add_argument('--value_lr', type=float, default=1e-3)
+    parser.add_argument('--policy_lr', type=float, default=1e-3)
     parser.add_argument('-n', '--n_workers', type=int, default=4)
     parser.add_argument('--use_gpu', type=str2bool, default=False)
     parser.add_argument('--sampler_mode', type=str, default='ray')

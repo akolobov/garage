@@ -27,10 +27,10 @@ def get_algo(*,
              policy_network_hidden_nonlinearity=torch.tanh,
              value_natwork_hidden_sizes=(256, 128),
              value_network_hidden_nonlinearity=torch.tanh,
-             policy_lr=2e-4,  # optimization stepsize for policy update
-             value_lr=5e-3,  # optimization stepsize for value regression
+             policy_lr=1e-3,  # optimization stepsize for policy update
+             value_lr=1e-3,  # optimization stepsize for value regression
              opt_minibatch_size=128,  # optimization/replaybuffer minibatch size
-             opt_n_grad_steps=1000,  # number of gradient updates
+             opt_n_grad_steps=1000,  # number of gradient updates per epoch
              num_evaluation_episodes=10, # number of episodes to evaluate (only affect off-policy algorithms)
              steps_per_epoch=1,  # number of internal epochs steps per epoch
              n_epochs=None,  # number of training epochs
@@ -40,6 +40,7 @@ def get_algo(*,
              sampler_mode='ray',
              #
              # algorithm specific hyperparmeters
+             target_update_tau=5e-3, # for target network
              expert_policy=None,  # for BC
              kl_constraint=0.05,  # kl constraint between policy updates
              gae_lambda=0.98,  # lambda of gae estimator
@@ -51,6 +52,12 @@ def get_algo(*,
     assert isinstance(env, GymEnv) or env is None
     assert not (env is None and episode_batch is None)
     assert batch_size is not None
+
+    # For normalized behaviors
+    opt_n_grad_steps = int(opt_n_grad_steps/steps_per_epoch)
+    n_epochs = n_epochs or np.inf
+    num_timesteps = n_epochs * steps_per_epoch * batch_size
+
 
     # Define some helper functions used by most algorithms
     if episode_batch is None:
@@ -156,7 +163,7 @@ def get_algo(*,
                    gradient_steps_per_itr=opt_n_grad_steps,
                    replay_buffer=replay_buffer,
                    min_buffer_size=1e4,
-                   target_update_tau=5e-3,
+                   target_update_tau=target_update_tau,
                    discount=discount,
                    buffer_batch_size=opt_minibatch_size,
                    reward_scale=1.,
@@ -180,7 +187,7 @@ def get_algo(*,
                    gradient_steps_per_itr=opt_n_grad_steps,
                    replay_buffer=replay_buffer,
                    min_buffer_size=1e4,
-                   target_update_tau=5e-3,
+                   target_update_tau=target_update_tau,
                    discount=discount,
                    buffer_batch_size=opt_minibatch_size,
                    reward_scale=1.,
@@ -193,8 +200,6 @@ def get_algo(*,
         from garage.np.exploration_policies import AddGaussianNoise
         from garage.np.policies import UniformRandomPolicy
         from garage.torch.algos import TD3
-        n_epochs = n_epochs or np.inf
-        num_timesteps = n_epochs * steps_per_epoch * batch_size
         policy = get_mlp_policy(stochastic=False, clip_output=True)
         exploration_policy = AddGaussianNoise(env_spec,
                                               policy,
@@ -216,7 +221,7 @@ def get_algo(*,
                   qf_optimizer=torch.optim.Adam,
                   exploration_policy=exploration_policy,
                   uniform_random_policy=uniform_random_policy,
-                  target_update_tau=0.005,
+                  target_update_tau=target_update_tau,
                   discount=discount,
                   policy_noise_clip=0.5,
                   policy_noise=0.2,
@@ -227,7 +232,8 @@ def get_algo(*,
                   start_steps=1000,
                   grad_steps_per_env_step=opt_n_grad_steps,  # number of optimization steps
                   min_buffer_size=int(1e4),
-                  buffer_batch_size=opt_minibatch_size)
+                  buffer_batch_size=opt_minibatch_size,
+                  )
 
     elif algo_name=='BC':
         sampler=get_sampler(expert_policy)
@@ -243,6 +249,43 @@ def get_algo(*,
                   policy_lr=policy_lr,
                   loss='mse', #'log_prob' if isinstance(policy,StochasticPolicy) else 'mse'
                   )
+
+    elif algo_name in ['DQN', 'DDQN']:
+        from garage.torch.policies import DiscreteQFArgmaxPolicy
+        from garage.torch.q_functions import DiscreteMLPQFunction
+        from garage.np.exploration_policies import EpsilonGreedyPolicy
+
+        double_q = algo_name is 'DDQN'
+
+        replay_buffer = get_replay_buferr()
+        qf = DiscreteMLPQFunction(env_spec=env_spec, hidden_sizes=value_natwork_hidden_sizes)
+        policy = DiscreteQFArgmaxPolicy(env_spec=env_spec, qf=qf)
+        exploration_policy = EpsilonGreedyPolicy(env_spec=env_spec,
+                                                 policy=policy,
+                                                 total_timesteps=num_timesteps,
+                                                 max_epsilon=1.0,
+                                                 min_epsilon=0.01,
+                                                 decay_ratio=1.0)
+        sampler = get_sampler(exploration_policy)
+        algo = DQN(env_spec=env_spec,
+                    policy=policy,
+                    qf=qf,
+                    exploration_policy=exploration_policy,
+                    replay_buffer=replay_buffer,
+                    sampler=sampler,
+                    steps_per_epoch=steps_per_epoch,
+                    qf_lr=value_lr,
+                    discount=discount,
+                    min_buffer_size=int(1e4),
+                    n_train_steps=opt_n_grad_steps,
+                    buffer_batch_size=opt_minibatch_size,
+                    deterministic_eval=True,
+                    num_eval_episodes=num_evaluation_episodes,
+                    target_update_tau=target_update_tau,
+                    double_q=double_q) # false
+
+
+
     else:
         raise ValueError('Unknown algo_name')
 
@@ -263,7 +306,7 @@ class BC(garageBC):
         kwargs['minibatches_per_epoch']=None
         super().__init__(*args, **kwargs)
 
-    # Evaluate performance after training
+    # NOTE Evaluate performance after training
     def train(self, trainer):
         """Obtain samplers and start actual training for each epoch.
 
@@ -286,7 +329,7 @@ class BC(garageBC):
                 tabular.record('MeanLoss', np.mean(losses))
                 tabular.record('StdLoss', np.std(losses))
 
-    # Use a fixed number of updates and minibatch size instead.
+    # NOTE Use a fixed number of updates and minibatch size instead.
     def _train_once(self, trainer, epoch):
         """Obtain samplers and train for one epoch.
 
@@ -311,3 +354,50 @@ class BC(garageBC):
             losses.append(loss.item())
             self._optimizer.step()
         return losses
+
+
+
+
+from garage.torch.algos import DQN as garageDQN
+
+class DQN(garageDQN):
+    """ Use Polyak average as the target. """
+
+    def __init__(self, *args, target_update_tau=5e-3, **kwargs):
+        self._tau = target_update_tau
+        super().__init__(*args, **kwargs)
+
+    # NOTE Use Polyak average to update the target instead
+    def _train_once(self, itr, episodes):
+        """Perform one iteration of training.
+
+        Args:
+            itr (int): Iteration number.
+            episodes (EpisodeBatch): Batch of episodes.
+
+        """
+        self.replay_buffer.add_episode_batch(episodes)
+
+        epoch = itr / self._steps_per_epoch
+
+        for _ in range(self._n_train_steps):
+            if (self.replay_buffer.n_transitions_stored >=
+                    self._min_buffer_size):
+                timesteps = self.replay_buffer.sample_timesteps(
+                    self._buffer_batch_size)
+                qf_loss, y, q = tuple(v.cpu().numpy()
+                                      for v in self._optimize_qf(timesteps))
+
+                self._episode_qf_losses.append(qf_loss)
+                self._epoch_ys.append(y)
+                self._epoch_qs.append(q)
+
+                # Polyak update
+                for t_param, param in zip(self._target_qf.parameters(), self._qf.parameters()):
+                    t_param.data.copy_(t_param.data * (1.0 - self._tau) + param.data * self._tau)
+
+        if itr % self._steps_per_epoch == 0:
+            self._log_eval_results(epoch)
+
+        # if itr % self._target_update_freq == 0:
+            # self._target_qf = copy.deepcopy(self._qf)
