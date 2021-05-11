@@ -39,5 +39,5 @@ class TanhLS(LinearLS):
     @property
     def _delta(self):  # a value in [0,1]
         limit = 0.99
-        delta = np.tanh(self._itr/(self._n_epochs-1)*np.arctanh(limit)) / limit
+        delta = np.tanh(self._itr/max(1,self._n_epochs-1)*np.arctanh(limit)) / limit
         return min(1.0, delta)

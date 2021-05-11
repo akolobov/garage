@@ -361,13 +361,11 @@ class BC(garageBC):
 from garage.torch.algos import DQN as garageDQN
 
 class DQN(garageDQN):
-    """ Use Polyak average as the target. """
-
     def __init__(self, *args, target_update_tau=5e-3, **kwargs):
         self._tau = target_update_tau
         super().__init__(*args, **kwargs)
 
-    # NOTE Use Polyak average to update the target instead
+    # NOTE Use exponential moving average to update the target instead
     def _train_once(self, itr, episodes):
         """Perform one iteration of training.
 
@@ -392,7 +390,7 @@ class DQN(garageDQN):
                 self._epoch_ys.append(y)
                 self._epoch_qs.append(q)
 
-                # Polyak update
+                # Exponential moving average
                 for t_param, param in zip(self._target_qf.parameters(), self._qf.parameters()):
                     t_param.data.copy_(t_param.data * (1.0 - self._tau) + param.data * self._tau)
 
