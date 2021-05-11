@@ -122,6 +122,8 @@ def rollout(env,
         # NOTE Fix the bug of discrete observations
         if type(env.observation_space) is akro.discrete.Discrete:
             last_obs_ = env.observation_space.flatten(last_obs)
+        else:
+            last_obs_ = last_obs
 
         a, agent_info = agent.get_action(last_obs_)
         if deterministic and 'mean' in agent_info:

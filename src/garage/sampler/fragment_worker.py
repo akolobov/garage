@@ -104,6 +104,8 @@ class FragmentWorker(DefaultWorker):
         # NOTE Fix the bug of discrete observations
         if type(self._envs[0].observation_space) is akro.discrete.Discrete:
             prev_obs_ = self._envs[0].observation_space.flatten_n(prev_obs)
+        else:
+            prev_obs_ = prev_obs
 
         actions, agent_infos = self.agent.get_actions(prev_obs_)
         completes = [False] * len(self._envs)

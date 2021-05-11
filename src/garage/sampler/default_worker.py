@@ -111,6 +111,8 @@ class DefaultWorker(Worker):
             # NOTE Fix the bug of discrete observations
             if type(self.env.observation_space) is akro.discrete.Discrete:
                 prev_obs_ = self.env.observation_space.flatten(self._prev_obs)
+            else:
+                prev_obs_ = self._prev_obs
 
             a, agent_info = self.agent.get_action(prev_obs_)
             es = self.env.step(a)
