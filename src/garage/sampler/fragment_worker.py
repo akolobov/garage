@@ -7,6 +7,7 @@ from garage import EpisodeBatch, StepType
 from garage.sampler import _apply_env_update, InProgressEpisode
 from garage.sampler.default_worker import DefaultWorker
 
+import akro
 
 class FragmentWorker(DefaultWorker):
     """Vectorized Worker that collects partial episodes.
@@ -99,7 +100,12 @@ class FragmentWorker(DefaultWorker):
 
         """
         prev_obs = np.asarray([frag.last_obs for frag in self._fragments])
-        actions, agent_infos = self.agent.get_actions(prev_obs)
+
+        # NOTE Fix the bug of discrete observations
+        if type(self._envs[0].observation_space) is akro.discrete.Discrete:
+            prev_obs_ = self._envs[0].observation_space.flatten_n(prev_obs)
+
+        actions, agent_infos = self.agent.get_actions(prev_obs_)
         completes = [False] * len(self._envs)
         for i, action in enumerate(actions):
             frag = self._fragments[i]
