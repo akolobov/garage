@@ -13,7 +13,7 @@ class _Vf:
         acs = self.policy.get_actions(obs)[0]
         acs = torch.Tensor(acs)
         pred_qs = [qf(obs, acs) for qf in self.qfs]
-        return torch.min(torch.Tensor(pred_qs))
+        return torch.minimum(*pred_qs)
 
 def get_algo_vf(algo):
     # load heuristic
