@@ -214,7 +214,6 @@ def train_heuristics(data_path,
     print("Load heuristic snapshot.")
     heuristic = load_heuristic_from_snapshot(log_dir, 'last')
     assert heuristic is not None
-    import pdb; pdb.set_trace()
     return heuristic
 
 def pretrain_policy(data_path,
