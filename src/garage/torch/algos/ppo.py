@@ -60,7 +60,8 @@ class PPO(VPG):
                  policy_ent_coeff=0.0,
                  use_softplus_entropy=False,
                  stop_entropy_gradient=False,
-                 entropy_method='no_entropy'):
+                 entropy_method='no_entropy',
+                 append_terminal_val=True):
 
         if policy_optimizer is None:
             policy_optimizer = OptimizerWrapper(
@@ -89,7 +90,8 @@ class PPO(VPG):
                          policy_ent_coeff=policy_ent_coeff,
                          use_softplus_entropy=use_softplus_entropy,
                          stop_entropy_gradient=stop_entropy_gradient,
-                         entropy_method=entropy_method)
+                         entropy_method=entropy_method,
+                         append_terminal_val=append_terminal_val)
 
         self._lr_clip_range = lr_clip_range
 
