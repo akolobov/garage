@@ -51,6 +51,9 @@ class VPG(RLAlgorithm):
             the mean entropy to the surrogate objective. See
             https://arxiv.org/abs/1805.00909 for more details.
 
+        FIX
+        append_terminal_val (bool): Whether to append the value evaluated at the last observation
+
     """
 
     def __init__(
@@ -70,7 +73,11 @@ class VPG(RLAlgorithm):
         use_softplus_entropy=False,
         stop_entropy_gradient=False,
         entropy_method='no_entropy',
+        append_terminal_val=True,
     ):
+        # HACK
+        self._append_terminal_val = append_terminal_val
+
         self._discount = discount
         self.policy = policy
         self.max_episode_length = env_spec.max_episode_length
@@ -146,11 +153,18 @@ class VPG(RLAlgorithm):
         """
         obs = torch.Tensor(eps.padded_observations)
         rewards = torch.Tensor(eps.padded_rewards)
-        returns = torch.Tensor(
-            np.stack([
-                discount_cumsum(reward, self.discount)
-                for reward in eps.padded_rewards
-            ]))
+
+        # HACK Fix the boundary issue
+        rewards_ = eps.padded_rewards
+        if self._append_terminal_val:
+            tt_ = eps.padded_env_infos['GymEnv.TimeLimitTerminated'][:,-1]
+            vlast_ = tt_*self._value_function(torch.Tensor(eps.last_observations)).detach().numpy()
+            rewards_ = np.concatenate((rewards_, vlast_[...,np.newaxis]), axis=1)
+            returns = torch.Tensor(np.stack([discount_cumsum(reward, self.discount) for reward in rewards_]))
+            returns = returns[:,:-1]
+        else:
+            returns = torch.Tensor(np.stack([discount_cumsum(reward, self.discount) for reward in rewards_]))
+
         valids = eps.lengths
         with torch.no_grad():
             baselines = self._value_function(obs)
