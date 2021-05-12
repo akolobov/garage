@@ -177,7 +177,8 @@ class LambdaEnvUpdate(EnvUpdate):
 
 class SRLTrainer(Trainer):
 
-    def setup(self, *args, discount=1.0, lambd=1.0, **kwargs):
+    def setup(self, *args, discount=None, lambd=1.0, **kwargs):
+        assert discount is not None
         output = super().setup(*args, **kwargs)
         self._lambd = lambd if isinstance(lambd, LambdaScheduler) else LambdaScheduler(lambd)
         self.discount = discount

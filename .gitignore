@@ -156,7 +156,7 @@ MUJOCO_LOG.TXT
 *.pkl
 
 # log
-snapshots/
+snapshots*/
 events.out.*
 experiment.json
 *.pdf

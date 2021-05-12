@@ -30,13 +30,13 @@ def load_env(env_name, heuristic=None, lambd=1.0, discount=1.0, init_with_defaul
                              use_generated_assets=False,
                              debug_mode=0,
                              center_agent=True,
-                             use_sequential_levels=False,  # When you reach the end of a level, the episode ends 
-                                                           # and a new level is selected. If use_sequential_levels 
-                                                           # is set to True, reaching the end of a level does not 
+                             use_sequential_levels=False,  # When you reach the end of a level, the episode ends
+                                                           # and a new level is selected. If use_sequential_levels
+                                                           # is set to True, reaching the end of a level does not
                                                            # end the episode.
                              distribution_mode='hard'
                             )
-        
+
         is_image = True
     elif env_name_parts[0].lower() == 'atari':
         env = gym.make(env_name_parts[1])
@@ -53,7 +53,7 @@ def load_env(env_name, heuristic=None, lambd=1.0, discount=1.0, init_with_defaul
     else:
         env = gym.make(env_name)
         is_image = False
-    
+
     if init_with_defaults:
         env = ShortMDP(env)
     else:
@@ -97,7 +97,9 @@ def offline_train(ctxt=None,
         return_attr = 'BC/MeanLoss'
 
     trainer = Trainer(ctxt)
-    trainer.setup(algo=algo, env=None,
+    trainer.setup(algo=algo,
+                  env=None,
+                  discount=discount,
                   save_mode=save_mode,
                   return_mode=return_mode,
                   return_attr=return_attr)
@@ -212,6 +214,7 @@ def train_heuristics(data_path,
     print("Load heuristic snapshot.")
     heuristic = load_heuristic_from_snapshot(log_dir, 'last')
     assert heuristic is not None
+    import pdb; pdb.set_trace()
     return heuristic
 
 def pretrain_policy(data_path,
