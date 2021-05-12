@@ -8,6 +8,7 @@ from garage.experiment import deterministic
 from garage.sampler import _apply_env_update
 from garage.sampler.worker import Worker
 
+import akro
 
 class DefaultWorker(Worker):
     """Initialize a worker.
@@ -106,7 +107,14 @@ class DefaultWorker(Worker):
 
         """
         if self._eps_length < self._max_episode_length:
-            a, agent_info = self.agent.get_action(self._prev_obs)
+
+            # NOTE Fix the bug of discrete observations
+            if type(self.env.observation_space) is akro.discrete.Discrete:
+                prev_obs_ = self.env.observation_space.flatten(self._prev_obs)
+            else:
+                prev_obs_ = self._prev_obs
+
+            a, agent_info = self.agent.get_action(prev_obs_)
             es = self.env.step(a)
             self._observations.append(self._prev_obs)
             self._env_steps.append(es)
