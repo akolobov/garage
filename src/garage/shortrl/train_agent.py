@@ -1,3 +1,4 @@
+"""
 import torch
 import gym
 import os
@@ -213,3 +214,4 @@ if __name__ == '__main__':
     # Run experiment.
     args_dict = vars(args)
     simple_run_exp(**args_dict)
+"""

@@ -18,6 +18,50 @@ from garage.shortrl.pretrain import init_policy_from_baseline
 from garage._dtypes import EpisodeBatch
 import garage.shortrl.rl_utils as ru
 
+
+def load_env(env_name, heuristic=None, lambd=1.0, discount=1.0, init_with_defaults=True):
+    env_name_parts = env_name.split(':')
+
+    if env_name_parts[0].lower() == 'procgen':
+        env = gym.make("procgen:procgen-" +  env_name_parts[1] + "-v0",
+                             num_levels=0, # this means we should use all levels higher than start_level
+                             start_level=0,
+                             paint_vel_info=False,
+                             use_generated_assets=False,
+                             debug_mode=0,
+                             center_agent=True,
+                             use_sequential_levels=False,  # When you reach the end of a level, the episode ends 
+                                                           # and a new level is selected. If use_sequential_levels 
+                                                           # is set to True, reaching the end of a level does not 
+                                                           # end the episode.
+                             distribution_mode='hard'
+                            )
+        
+        is_image = True
+    elif env_name_parts[0].lower() == 'atari':
+        env = gym.make(env_name_parts[1])
+        env = Noop(env, noop_max=30)
+        env = MaxAndSkip(env, skip=4)
+        env = EpisodicLife(env)
+        if 'FIRE' in env.unwrapped.get_action_meanings():
+            env = FireReset(env)
+        env = Grayscale(env)
+        env = Resize(env, 84, 84)
+        env = ClipReward(env)
+        env = StackFrames(env, 4, axis=0)
+        is_image = True
+    else:
+        env = gym.make(env_name)
+        is_image = False
+    
+    if init_with_defaults:
+        env = ShortMDP(env)
+    else:
+        env = ShortMDP(env, heuristic, lambd=lambd, gamma=discount)
+    env = GymEnv(env, is_image=is_image)
+    return env
+
+
 def offline_train(ctxt=None,
                   *,
                   algo_name,  # algorithm name
@@ -90,7 +134,7 @@ def online_train(ctxt=None,
 
     # Wrap the gym env into our *gym* wrapper first and then into the standard garage wrapper.
     heuristic = heuristic or (lambda x : 0.)
-    env = GymEnv(ShortMDP(gym.make(env_name), heuristic, lambd=lambd, gamma=discount))
+    env = load_env(env_name, heuristic=heuristic, lambd=lambd, discount=discount, init_with_defaults=False)
 
     # Initialize the algorithm
     init_policy = None if init_policy_fun is None else init_policy_fun()
@@ -288,7 +332,8 @@ def run_exp(*,
     if use_heuristic or warmstart_policy:
         assert data_itr is not None and data_path is not None
 
-    env = GymEnv(ShortMDP(gym.make(env_name)))
+    #env = GymEnv(ShortMDP(gym.make(env_name)))
+    env = load_env(env_name, init_with_defaults=True)
 
     if discount is None:
         discount = 1 -1/env.spec.max_episode_length
