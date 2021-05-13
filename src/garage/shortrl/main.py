@@ -214,6 +214,7 @@ def train_heuristics(data_path,
     print("Load heuristic snapshot.")
     heuristic = load_heuristic_from_snapshot(log_dir, 'last')
     assert heuristic is not None
+    import pdb; pdb.set_trace()
     return heuristic
 
 def pretrain_policy(data_path,
@@ -316,13 +317,13 @@ def run_exp(*,
             # pretrain policy
             warmstart_policy=False,
             w_algo_name='BC',
-            w_n_epoch=20,
+            w_n_epoch=30,
             # short-horizon RL params
             lambd=1.0,
             use_raw_snapshot=False,
             use_heuristic=False,
             h_algo_name='VPG',
-            h_n_epoch=20,
+            h_n_epoch=30,
             # logging
             snapshot_frequency=0,  # 0 means only taking the last snapshot
             log_root=None,
@@ -429,19 +430,19 @@ if __name__ == '__main__':
     parser.add_argument('-b', '--batch_size', type=int, default=10000)
     parser.add_argument('-s', '--seed', type=int, default=1)
     # offline batch data
-    parser.add_argument('--data_path', type=str, default='snapshots/SAC_Inver_1.0_F_F/120032374/')
-    parser.add_argument('--data_itr', type=int, default=8)
+    parser.add_argument('--data_path', type=str, default='snapshots/SAC_HalfC_1.0_F_F/935667771/')
+    parser.add_argument('--data_itr', type=int, default=20)
     parser.add_argument('--episode_batch_size', type=int, default=50000)
     # pretrain policy
     parser.add_argument('-w', '--warmstart_policy', type=str2bool, default=False)
     parser.add_argument('--w_algo_name', type=str, default='BC')
-    parser.add_argument('--w_n_epoch', type=int, default=20)
+    parser.add_argument('--w_n_epoch', type=int, default=30)
     # short-horizon RL params
     parser.add_argument('-l', '--lambd', type=float, default=1.0)
     parser.add_argument('-u', '--use_heuristic', type=str2bool, default=False)
     parser.add_argument('--use_raw_snapshot', type=str2bool, default=False)
     parser.add_argument('--h_algo_name', type=str, default='VPG')
-    parser.add_argument('--h_n_epoch', type=int, default=20)
+    parser.add_argument('--h_n_epoch', type=int, default=30)
     parser.add_argument('--ls_n_epochs', type=int, default=None)
     parser.add_argument('--ls_cls', type=str, default='TanhLS')
     # logging
@@ -461,3 +462,5 @@ if __name__ == '__main__':
     # Run experiment.
     args_dict = vars(args)
     run_exp(**args_dict)
+            # value_natwork_hidden_sizes=[256, 256],
+            # policy_network_hidden_sizes=[256, 256])

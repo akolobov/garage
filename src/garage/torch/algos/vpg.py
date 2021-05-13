@@ -158,7 +158,8 @@ class VPG(RLAlgorithm):
         rewards_ = eps.padded_rewards
         if self._append_terminal_val:
             tt_ = eps.padded_env_infos['GymEnv.TimeLimitTerminated'][:,-1]
-            vlast_ = tt_*self._value_function(torch.Tensor(eps.last_observations)).detach().numpy()
+            vlast_ = self._value_function(torch.Tensor(eps.last_observations)).detach().numpy()
+            vlast_ = tt_*vlast_
             rewards_ = np.concatenate((rewards_, vlast_[...,np.newaxis]), axis=1)
             returns = torch.Tensor(np.stack([discount_cumsum(reward, self.discount) for reward in rewards_]))
             returns = returns[:,:-1]
@@ -186,6 +187,21 @@ class VPG(RLAlgorithm):
                 obs_flat, returns_flat)
             kl_before = self._compute_kl_constraint(obs)
 
+        # HACK
+        import pdb; pdb.set_trace()
+
+        if not hasattr(eps.env_infos, 'RandInd'):
+            # Zind = np.random.randint(self._value_function.output_dim, size=len(eps.lengths))
+            ind = np.random.randint(self._value_function.output_dim, size=len(returns_flat))
+            eps.env_infos['RandInd'] = ind
+
+        returns_flat = torch.unsqueeze(returns_flat,-1)
+        ind_flat = torch.unsqueeze(torch.Tensor(eps.env_infos['RandInd']),-1)
+
+        returns_flat = torch.cat((returns_flat, ind_flat) , dim=-1)
+        import pdb; pdb.set_trace()
+
+
         self._train(obs_flat, actions_flat, rewards_flat, returns_flat,
                     advs_flat)
 
@@ -211,6 +227,13 @@ class VPG(RLAlgorithm):
             tabular.record('/LossAfter', vf_loss_after.item())
             tabular.record('/dLoss',
                            vf_loss_before.item() - vf_loss_after.item())
+
+            # import pdb; pdb.set_trace()
+            if hasattr(self._value_function, 'uncertainty'):
+                uncertainty = self._value_function.uncertainty(obs_flat)
+                import pdb; pdb.set_trace()
+                tabular.record('/uncertainty', np.max(uncertainty.detach().numpy()))
+
 
         self._old_policy.load_state_dict(self.policy.state_dict())
 

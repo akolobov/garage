@@ -43,6 +43,8 @@ def get_mlp_policy(*,
                     output_nonlinearity=torch.tanh if use_tanh else None)
 
 
+from garage.shortrl.values import PessimisticGaussianMLPValueFunction
+
 def get_mlp_value(form='Q',
                   *,
                   env_spec,
@@ -62,6 +64,14 @@ def get_mlp_value(form='Q',
                 hidden_nonlinearity=hidden_nonlinearity,
                 output_nonlinearity=None,
                 learn_std=False)
+    if form=='PV':
+        return PessimisticGaussianMLPValueFunction(
+                env_spec=env_spec,
+                hidden_sizes=hidden_sizes,
+                hidden_nonlinearity=hidden_nonlinearity,
+                output_nonlinearity=None,
+                learn_std=False,
+                ensemble_size=10)
 
 
 def collect_episode_batch(policy, *,

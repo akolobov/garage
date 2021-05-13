@@ -94,7 +94,7 @@ def get_algo(*,
     if algo_name=='PPO':
         from garage.torch.algos import PPO
         policy = get_mlp_policy(stochastic=True, clip_output=False)
-        value_function = get_mlp_value('V')
+        value_function = get_mlp_value('PV')
         sampler = get_sampler(policy)
         algo = PPO(env_spec=env_spec,
                    policy=policy,
