@@ -43,14 +43,17 @@ def get_mlp_policy(*,
                     output_nonlinearity=torch.tanh if use_tanh else None)
 
 
-from garage.shortrl.values import PessimisticGaussianMLPValueFunction
+from garage.shortrl.values import EnsembleGaussianMLPValueFunction
 
 def get_mlp_value(form='Q',
                   *,
                   env_spec,
                   hidden_sizes=(256, 128),
-                  hidden_nonlinearity=torch.tanh
+                  hidden_nonlinearity=torch.tanh,
+                  ensemble_size=1,
+                  ensemble_mode='P'
                   ):
+
     if form=='Q':
         return ContinuousMLPQFunction(
                 env_spec=env_spec,
@@ -58,20 +61,23 @@ def get_mlp_value(form='Q',
                 hidden_nonlinearity=hidden_nonlinearity,
                 output_nonlinearity=None)
     if form=='V':
-        return GaussianMLPValueFunction(
-                env_spec=env_spec,
-                hidden_sizes=hidden_sizes,
-                hidden_nonlinearity=hidden_nonlinearity,
-                output_nonlinearity=None,
-                learn_std=False)
-    if form=='PV':
-        return PessimisticGaussianMLPValueFunction(
-                env_spec=env_spec,
-                hidden_sizes=hidden_sizes,
-                hidden_nonlinearity=hidden_nonlinearity,
-                output_nonlinearity=None,
-                learn_std=False,
-                ensemble_size=10)
+        if ensemble_size==1:
+            return GaussianMLPValueFunction(
+                    env_spec=env_spec,
+                    hidden_sizes=hidden_sizes,
+                    hidden_nonlinearity=hidden_nonlinearity,
+                    output_nonlinearity=None,
+                    learn_std=False)
+        else:
+            return EnsembleGaussianMLPValueFunction(
+                    env_spec=env_spec,
+                    hidden_sizes=hidden_sizes,
+                    hidden_nonlinearity=hidden_nonlinearity,
+                    output_nonlinearity=None,
+                    learn_std=False,
+                    ensemble_size=ensemble_size,
+                    ensemble_mode=ensemble_mode)
+
 
 
 def collect_episode_batch(policy, *,
@@ -90,18 +96,47 @@ import copy
 from garage._dtypes import EpisodeBatch
 class BatchSampler(Sampler):
 
-    def __init__(self, episode_batch):
+    def __init__(self, episode_batch, randomize=True):
         self.episode_batch = episode_batch
+        self.randomize = randomize
+        self._counter = 0
 
     def obtain_samples(self, itr, num_samples, agent_update, env_update=None):
-        # Sample num_samples from episode_batch
+
         ns = self.episode_batch.lengths
-        ind = np.random.permutation(len(ns))
-        cumsum_permuted_ns = np.cumsum(ns[ind])
-        itemindex = np.where(cumsum_permuted_ns>=num_samples)[0][0]
-        ld = self.episode_batch.to_list()
-        ld = [ld[i] for i in ind[:itemindex+1].tolist()]
-        sampled_eb = EpisodeBatch.from_list(self.episode_batch.env_spec,ld)
+        if num_samples<np.sum(ns):
+            if self.randomize:
+                # Sample num_samples from episode_batch
+                ns = self.episode_batch.lengths
+                ind = np.random.permutation(len(ns))
+                cumsum_permuted_ns = np.cumsum(ns[ind])
+                itemindex = np.where(cumsum_permuted_ns>=num_samples)[0]
+                if len(itemindex)>0:
+                    ld = self.episode_batch.to_list()
+                    j_max = min(len(ld), itemindex[0]+1)
+                    ld = [ld[i] for i in ind[:j_max].tolist()]
+                    sampled_eb = EpisodeBatch.from_list(self.episode_batch.env_spec,ld)
+                else:
+                    sampled_eb = None
+            else:
+                ns = self.episode_batch.lengths
+                ind = np.arange(len(ns))
+                cumsum_permuted_ns = np.cumsum(ns[ind])
+                counter = int(self._counter)
+                itemindex = np.where(cumsum_permuted_ns>=num_samples*(counter+1))[0]
+                itemindex0 = np.where(cumsum_permuted_ns>num_samples*counter)[0]
+                if len(itemindex)>0:
+                    ld = self.episode_batch.to_list()
+                    j_max = min(len(ld), itemindex[0]+1)
+                    j_min = itemindex0[0]
+                    ld = [ld[i] for i in ind[j_min:j_max].tolist()]
+                    sampled_eb = EpisodeBatch.from_list(self.episode_batch.env_spec,ld)
+                    self._counter+=1
+                else:
+                    sampled_eb = None
+        else:
+            sampled_eb = self.episode_batch
+
         return sampled_eb
 
     def shutdown_worker(self):

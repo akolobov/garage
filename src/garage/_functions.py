@@ -365,4 +365,14 @@ def compute_shortrl_stats(itr, batch, discount):
         undiscounted_returns.append(sum(rewards))
     average_discounted_return = np.mean([rtn[0] for rtn in returns])
 
+    mean_hs = []
+    std_hs = []
+    for eps in batch.split():
+        hs = eps.env_infos['h']
+        mean_hs.append(np.mean(hs))
+        std_hs.append(np.std(hs))
+    with tabular.prefix('ShortRL' + '/'):
+        tabular.record('MeanHeuristic', np.mean(mean_hs))
+        tabular.record('StdHeuristic', np.mean(std_hs))
+
     return undiscounted_returns, average_discounted_return

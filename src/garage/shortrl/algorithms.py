@@ -27,6 +27,8 @@ def get_algo(*,
              policy_network_hidden_nonlinearity=torch.tanh,
              value_natwork_hidden_sizes=(256, 128),
              value_network_hidden_nonlinearity=torch.tanh,
+             value_ensemble_size=1, # ensemble size of value network
+             value_ensemble_mode='P', # ensemble mode of value network, P or O
              policy_lr=1e-3,  # optimization stepsize for policy update
              value_lr=1e-3,  # optimization stepsize for value regression
              opt_minibatch_size=128,  # optimization/replaybuffer minibatch size
@@ -34,6 +36,7 @@ def get_algo(*,
              num_evaluation_episodes=10, # number of episodes to evaluate (only affect off-policy algorithms)
              steps_per_epoch=1,  # number of internal epochs steps per epoch
              n_epochs=None,  # number of training epochs
+             randomize_episode_batch=True,
              #
              n_workers=4,  # number of workers for data collection
              use_gpu=False,  # try to use gpu, if implemented
@@ -67,7 +70,7 @@ def get_algo(*,
                               n_workers=n_workers)
         env_spec = env.spec
     else:
-        sampler = ru.BatchSampler(episode_batch=episode_batch)
+        sampler = ru.BatchSampler(episode_batch=episode_batch, randomize=randomize_episode_batch)
         get_sampler = lambda p: sampler
         env_spec = episode_batch.env_spec
 
@@ -94,7 +97,9 @@ def get_algo(*,
     if algo_name=='PPO':
         from garage.torch.algos import PPO
         policy = get_mlp_policy(stochastic=True, clip_output=False)
-        value_function = get_mlp_value('PV')
+        value_function = get_mlp_value('V',
+                                       ensemble_mode=value_ensemble_mode,
+                                       ensemble_size=value_ensemble_size)
         sampler = get_sampler(policy)
         algo = PPO(env_spec=env_spec,
                    policy=policy,
@@ -113,7 +118,9 @@ def get_algo(*,
     elif algo_name=='TRPO':
         from garage.torch.algos import TRPO
         policy = get_mlp_policy(stochastic=True, clip_output=False)
-        value_function = get_mlp_value('V')
+        value_function = get_mlp_value('V',
+                                       ensemble_mode=value_ensemble_mode,
+                                       ensemble_size=value_ensemble_size)
         sampler = get_sampler(policy)
         policy_optimizer = OptimizerWrapper(
                             (ConjugateGradientOptimizer, dict(max_constraint_value=kl_constraint)),
@@ -134,7 +141,9 @@ def get_algo(*,
     elif algo_name=='VPG':
         from garage.torch.algos import VPG
         policy = get_mlp_policy(stochastic=True, clip_output=False)
-        value_function = get_mlp_value('V')
+        value_function = get_mlp_value('V',
+                                       ensemble_mode=value_ensemble_mode,
+                                       ensemble_size=value_ensemble_size)
         sampler = get_sampler(policy)
         algo = VPG(env_spec=env_spec,
                     policy=policy,

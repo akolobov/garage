@@ -180,27 +180,24 @@ class VPG(RLAlgorithm):
         returns_flat = torch.cat(filter_valids(returns, valids))
         advs_flat = self._compute_advantage(rewards, valids, baselines)
 
+        # HACK Bootstrapping
+        if hasattr(self._value_function, 'ensemble_size'):
+            if not 'Mask' in eps.env_infos:
+                # ind = np.random.randint(self._value_function.ensemble_size, size=len(returns_flat))  # nonzero index
+                # mask = np.zeros((len(returns_flat), self._value_function.output_dim))
+                # mask[np.arange(len(ind)), ind] =1
+                mask = np.random.randint(2, size=(len(returns_flat), self._value_function.ensemble_size))
+                eps.env_infos['Mask'] = mask
+                import pdb; pdb.set_trace()
+            returns_flat = torch.unsqueeze(returns_flat,-1)
+            returns_flat = torch.cat((returns_flat, torch.Tensor(eps.env_infos['Mask'])) , dim=-1)
+
         with torch.no_grad():
             policy_loss_before = self._compute_loss_with_adv(
                 obs_flat, actions_flat, rewards_flat, advs_flat)
             vf_loss_before = self._value_function.compute_loss(
                 obs_flat, returns_flat)
             kl_before = self._compute_kl_constraint(obs)
-
-        # HACK
-        import pdb; pdb.set_trace()
-
-        if not hasattr(eps.env_infos, 'RandInd'):
-            # Zind = np.random.randint(self._value_function.output_dim, size=len(eps.lengths))
-            ind = np.random.randint(self._value_function.output_dim, size=len(returns_flat))
-            eps.env_infos['RandInd'] = ind
-
-        returns_flat = torch.unsqueeze(returns_flat,-1)
-        ind_flat = torch.unsqueeze(torch.Tensor(eps.env_infos['RandInd']),-1)
-
-        returns_flat = torch.cat((returns_flat, ind_flat) , dim=-1)
-        import pdb; pdb.set_trace()
-
 
         self._train(obs_flat, actions_flat, rewards_flat, returns_flat,
                     advs_flat)
@@ -231,7 +228,6 @@ class VPG(RLAlgorithm):
             # import pdb; pdb.set_trace()
             if hasattr(self._value_function, 'uncertainty'):
                 uncertainty = self._value_function.uncertainty(obs_flat)
-                import pdb; pdb.set_trace()
                 tabular.record('/uncertainty', np.max(uncertainty.detach().numpy()))
 
 

@@ -173,8 +173,19 @@ def get_snapshot_info(snapshot_frequency):
     snapshot_mode = 'gap_and_last' if snapshot_frequency>0 else 'last'
     return snapshot_gap, snapshot_mode
 
+def compute_episode_batch_returns(episode_batch):
+    undiscounted_returns = []
+    for eps in episode_batch.split():
+        if 'orig_reward' in eps.env_infos:
+            rewards = eps.env_infos['orig_reward']
+        else:
+            rewards = eps.rewards
+        undiscounted_returns.append(sum(rewards))
+    return np.mean(undiscounted_returns)
 
-def train_heuristics(data_path,
+
+def train_heuristics(
+                     data_path,
                      data_itr,
                      *,
                      algo_name,
@@ -191,31 +202,51 @@ def train_heuristics(data_path,
         heuristic = load_heuristic_from_snapshot(data_path, data_itr)
         return heuristic
 
-    log_dir = os.path.join(data_path,'itr_'+str(data_itr)+'_heuristic_'+algo_name)
-    snapshot_path = os.path.join(log_dir,'params.pkl')
-    if not os.path.exists(snapshot_path):
-        print("No saved heuristic snapshot found. Train one from batch data.")
-        episode_batch = load_episode_batch(data_path, data_itr)
+    train_from_mixed_data = isinstance(data_itr, list) or isinstance(data_itr, tuple)
+    episode_batch = None
+    if train_from_mixed_data:
+        # Train from a range of snapshots
+        assert len(data_itr)==2
+        data_itr_st, data_itr_ed = data_itr
+        data_itr_str = str(data_itr_st)+'_'+str(data_itr_ed)
+        log_dir = os.path.join(data_path,'itr_'+data_itr_str+'_heuristic_'+algo_name)
+        snapshot_path = os.path.join(log_dir,'params.pkl')
+        if not os.path.exists(snapshot_path):
+            print("No saved heuristic snapshot found. Train one from batch data.")
+            episode_batches = load_episode_batch(data_path, data_itr_str)
+            episode_batches.sort(key=compute_episode_batch_returns)  # from low to high returns
+            episode_batch = EpisodeBatch.concatenate(*episode_batches)
+    else:
+        # Train from a single of snapshots
+        log_dir = os.path.join(data_path,'itr_'+str(data_itr)+'_heuristic_'+algo_name)
+        snapshot_path = os.path.join(log_dir,'params.pkl')
+        if not os.path.exists(snapshot_path):
+            print("No saved heuristic snapshot found. Train one from batch data.")
+            episode_batch = load_episode_batch(data_path, data_itr)
+
+    if episode_batch is not None:
         snapshot_gap, snapshot_mode = get_snapshot_info(snapshot_frequency)
         exp = wrap_experiment(offline_train,
-                              log_dir=log_dir,  # overwrite
-                              snapshot_mode=snapshot_mode,
-                              snapshot_gap=snapshot_gap,
-                              archive_launch_repo=save_mode!='light',
-                              use_existing_dir=True)  # overwrites existing directory
+                            log_dir=log_dir,  # overwrite
+                            snapshot_mode=snapshot_mode,
+                            snapshot_gap=snapshot_gap,
+                            archive_launch_repo=save_mode!='light',
+                            use_existing_dir=True)  # overwrites existing directory
         exp(algo_name=algo_name,
             discount=discount,
             n_epochs=n_epochs,
             episode_batch=episode_batch,
             batch_size=batch_size,
             ignore_shutdown=True,
+            randomize_episode_batch=True, #not train_from_mixed_data,
             **kwargs)
+
 
     print("Load heuristic snapshot.")
     heuristic = load_heuristic_from_snapshot(log_dir, 'last')
     assert heuristic is not None
-    import pdb; pdb.set_trace()
     return heuristic
+
 
 def pretrain_policy(data_path,
                     data_itr,
@@ -230,19 +261,40 @@ def pretrain_policy(data_path,
                     **kwargs
                     ):
 
-    log_dir = os.path.join(data_path,'itr_'+str(data_itr)+'_init_policy_'+target_algo_name)
-    snapshot_path = os.path.join(log_dir, 'params.pkl')
-    if not os.path.exists(snapshot_path):
-        print("No saved init_policy snapshot found. Train one from batch data.")
-        episode_batch = load_episode_batch(data_path, data_itr)
+    train_from_mixed_data = isinstance(data_itr, list) or isinstance(data_itr, tuple)
+    episode_batch = None
+    if train_from_mixed_data:
+        # Train from a range of snapshots
+        assert len(data_itr)==2
+        data_itr_st, data_itr_ed = data_itr
+        data_itr_str = str(data_itr_st)+'_'+str(data_itr_ed)
+        log_dir = os.path.join(data_path,'itr_'+data_itr_str+'_init_policy_'+algo_name)
+        snapshot_path = os.path.join(log_dir,'params.pkl')
+        if not os.path.exists(snapshot_path):
+            print("No saved init_policy snapshot found. Train one from batch data.")
+            episode_batches = load_episode_batch(data_path, data_itr_str)
+            episode_batches.sort(key=compute_episode_batch_returns)  # from low to high returns
+            episode_batch = EpisodeBatch.concatenate(*episode_batches)
+            expert_policy = load_policy_from_snapshot(data_path, data_itr_ed) if algo_name=='BC' else None
+
+    else:
+        # Train from a single of snapshots
+        log_dir = os.path.join(data_path,'itr_'+str(data_itr)+'_init_policy_'+target_algo_name)
+        snapshot_path = os.path.join(log_dir, 'params.pkl')
+        if not os.path.exists(snapshot_path):
+            print("No saved init_policy snapshot found. Train one from batch data.")
+            episode_batch = load_episode_batch(data_path, data_itr)
+            expert_policy = load_policy_from_snapshot(data_path, data_itr) if algo_name=='BC' else None
+
+
+    if episode_batch is not None:
         snapshot_gap, snapshot_mode = get_snapshot_info(snapshot_frequency)
         exp = wrap_experiment(offline_train,
-                              log_dir=log_dir,  # overwrite
-                              snapshot_mode=snapshot_mode,
-                              snapshot_gap=snapshot_gap,
-                              archive_launch_repo=save_mode!='light',
-                              use_existing_dir=True)  # overwrites existing directory
-
+                                log_dir=log_dir,  # overwrite
+                                snapshot_mode=snapshot_mode,
+                                snapshot_gap=snapshot_gap,
+                                archive_launch_repo=save_mode!='light',
+                                use_existing_dir=True)  # overwrites existing directory
         def init_policy_fun():
             algo = get_algo(algo_name=target_algo_name,
                             discount=discount,  #  algorithm sees a shorter horizon,
@@ -250,8 +302,8 @@ def pretrain_policy(data_path,
                             batch_size=1,
                             **kwargs)
             return algo.policy
-        expert_policy = load_policy_from_snapshot(data_path, data_itr) if algo_name=='BC' else None
 
+        n_epochs = len(episode_batches) if train_from_mixed_data else n_epochs
         exp(algo_name=algo_name,
             discount=discount,
             n_epochs=n_epochs,
@@ -260,6 +312,7 @@ def pretrain_policy(data_path,
             expert_policy=expert_policy,
             init_policy_fun=init_policy_fun,
             ignore_shutdown=True,
+            randomize_episode_batch=not train_from_mixed_data, # to avoid conflicts
             **kwargs)
 
     print("Load init_policy snapshot.")
@@ -314,6 +367,8 @@ def run_exp(*,
             data_path=None,  # directory of the snapshot
             data_itr=None,
             episode_batch_size=50000,
+            offline_value_ensemble_size=1,
+            offline_value_ensemble_mode='P',
             # pretrain policy
             warmstart_policy=False,
             w_algo_name='BC',
@@ -357,6 +412,8 @@ def run_exp(*,
                                 batch_size=batch_size,
                                 seed=seed,
                                 use_raw_snapshot=use_raw_snapshot,
+                                value_ensemble_size=offline_value_ensemble_size,
+                                value_ensemble_mode=offline_value_ensemble_mode,
                                 **kwargs
                                 )
             if warmstart_policy:
@@ -376,15 +433,35 @@ def run_exp(*,
         except FileNotFoundError:
             # Collect episode_batch and save it
             print("No batch data found. Collect new data.")
-            expert_policy = load_policy_from_snapshot(data_path, data_itr)
-            set_seed(seed)
-            episode_batch = ru.collect_episode_batch(
-                                policy=expert_policy,
-                                env=env,
-                                batch_size=episode_batch_size,
-                                n_workers=kwargs.get('n_workers', 4),
-                                sampler_mode=kwargs.get('sampler_mode', 'ray'))
-            filepath = os.path.join(data_path,'itr_'+str(data_itr)+'_batch.pkl')
+
+            train_from_mixed_data = isinstance(data_itr, list) or isinstance(data_itr, tuple)
+            if train_from_mixed_data:
+                assert len(data_itr)==2
+                data_itr_st, data_itr_ed = data_itr
+                set_seed(seed)
+                episode_batch = []
+                for itr in range(data_itr_st, data_itr_ed):
+                    expert_policy = load_policy_from_snapshot(data_path, itr)
+                    eps = ru.collect_episode_batch(
+                                        policy=expert_policy,
+                                        env=env,
+                                        batch_size=episode_batch_size,
+                                        n_workers=kwargs.get('n_workers', 4),
+                                        sampler_mode=kwargs.get('sampler_mode', 'ray'))
+                    episode_batch.append(eps)
+
+                data_itr_str = str(data_itr_st)+'_'+str(data_itr_ed)
+            else:
+                expert_policy = load_policy_from_snapshot(data_path, data_itr)
+                set_seed(seed)
+                episode_batch = ru.collect_episode_batch(
+                                    policy=expert_policy,
+                                    env=env,
+                                    batch_size=episode_batch_size,
+                                    n_workers=kwargs.get('n_workers', 4),
+                                    sampler_mode=kwargs.get('sampler_mode', 'ray'))
+                data_itr_str = str(data_itr)
+            filepath = os.path.join(data_path,'itr_'+data_itr_str+'_batch.pkl')
             pickle.dump(episode_batch, open(filepath, "wb"))
 
     # Define log_dir based on garage's logging convention
@@ -426,13 +503,14 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--discount', type=float, default=None)
     parser.add_argument('-N', '--n_epochs', type=int, default=50)
     parser.add_argument('--total_n_samples', type=int, default=None)
-    parser.add_argument('-e', '--env_name', type=str, default='InvertedDoublePendulum-v2')
+    parser.add_argument('-e', '--env_name', type=str, default='HalfCheetah-v2')
     parser.add_argument('-b', '--batch_size', type=int, default=10000)
     parser.add_argument('-s', '--seed', type=int, default=1)
     # offline batch data
-    parser.add_argument('--data_path', type=str, default='snapshots/SAC_HalfC_1.0_F_F/935667771/')
-    parser.add_argument('--data_itr', type=int, default=20)
-    parser.add_argument('--episode_batch_size', type=int, default=50000)
+    parser.add_argument('--data_path', type=str, default='snapshots/SAC_HalfC_1.0_F_F/210566759/')
+    parser.add_argument('--data_itr', type=int, default=(0,20))
+    parser.add_argument('--episode_batch_size', type=int, default=10000) #50000)
+    parser.add_argument('--offline_value_ensemble_size', type=int, default=1)
     # pretrain policy
     parser.add_argument('-w', '--warmstart_policy', type=str2bool, default=False)
     parser.add_argument('--w_algo_name', type=str, default='BC')
@@ -462,5 +540,3 @@ if __name__ == '__main__':
     # Run experiment.
     args_dict = vars(args)
     run_exp(**args_dict)
-            # value_natwork_hidden_sizes=[256, 256],
-            # policy_network_hidden_sizes=[256, 256])

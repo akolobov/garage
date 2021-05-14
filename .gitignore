@@ -156,6 +156,7 @@ MUJOCO_LOG.TXT
 *.pkl
 
 # log
+azure_data/
 snapshots*/
 events.out.*
 experiment.json
