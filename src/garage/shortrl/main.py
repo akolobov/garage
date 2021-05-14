@@ -125,7 +125,7 @@ def online_train(ctxt=None,
                  # short-horizon RL params
                  heuristic=None,  # a python function
                  lambd=1.0,  # extra discount
-                 ls_n_epochs=None, # n_epoch for lambd to converge to 1.0 (default: n_epoch)
+                 ls_rate=1, # n_epoch for lambd to converge to 1.0 (default: n_epoch)
                  ls_cls='TanhLS', # class of LambdaScheduler
                  **kwargs,  # other kwargs for get_algo
                  ):
@@ -149,7 +149,7 @@ def online_train(ctxt=None,
                     **kwargs)
 
     # Define the lambda scheduler
-    ls_n_epochs = ls_n_epochs or n_epochs
+    ls_n_epochs = ls_rate * n_epochs
     ls = getattr(lambda_schedulers, ls_cls)(init_lambd=lambd, n_epochs=ls_n_epochs)
 
     # Initialize the trainer
@@ -521,7 +521,7 @@ if __name__ == '__main__':
     parser.add_argument('--use_raw_snapshot', type=str2bool, default=False)
     parser.add_argument('--h_algo_name', type=str, default='VPG')
     parser.add_argument('--h_n_epoch', type=int, default=30)
-    parser.add_argument('--ls_n_epochs', type=int, default=None)
+    parser.add_argument('--ls_rate', type=float(), default=1)
     parser.add_argument('--ls_cls', type=str, default='TanhLS')
     # logging
     parser.add_argument('--snapshot_frequency', type=int, default=0)
