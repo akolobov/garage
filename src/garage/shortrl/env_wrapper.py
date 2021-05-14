@@ -25,7 +25,9 @@ class ShortMDP(gym.Wrapper):
         info['lambda'] = self._lambd
         info['gamma'] = self._gamma
         info['scale'] = self._scale
-        if not done and self._heuristic is not None:
-            reward += (1-done) * (1-self._lambd) * self._gamma * self._heuristic(np.array([obs]))
+
+        if (not done or 'TimeLimit.truncated' in info) and self._heuristic is not None:
+            reward += (1-self._lambd) * self._gamma * self._heuristic(np.array([obs]))
+
         reward *= self._scale
         return obs, reward, done, info
