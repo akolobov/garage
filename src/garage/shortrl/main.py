@@ -530,15 +530,10 @@ if __name__ == '__main__':
     parser.add_argument('-b', '--batch_size', type=int, default=10000)
     parser.add_argument('-s', '--seed', type=int, default=1)
     # offline batch data
-<<<<<<< HEAD
     parser.add_argument('--data_path', type=str, default='snapshots/VPG_HalfC_1.0_F_F/1/')
     parser.add_argument('--data_itr', type=int, default=0)
     # parser.add_argument('--data_path', type=str, default='snapshots/SAC_HalfC_1.0_F_F/210566759/')
     # parser.add_argument('--data_itr', type=int, default=(0,9))
-=======
-    parser.add_argument('--data_path', type=str, default='snapshots/SAC_Inver_1.0_F_F/120032374/')
-    parser.add_argument('--data_itr', type=int, default=8)
->>>>>>> shortrl
     parser.add_argument('--episode_batch_size', type=int, default=10000) #50000)
     parser.add_argument('--offline_value_ensemble_size', type=int, default=1)
     # pretrain policy
@@ -551,11 +546,8 @@ if __name__ == '__main__':
     parser.add_argument('--use_raw_snapshot', type=str2bool, default=False)
     parser.add_argument('--h_algo_name', type=str, default='VPG')
     parser.add_argument('--h_n_epoch', type=int, default=30)
-<<<<<<< HEAD
     parser.add_argument('--use_pessimism', type=str2bool, default=False)
     parser.add_argument('--pessimism_threshold', type=float, default=0.0)
-=======
->>>>>>> shortrl
     parser.add_argument('--ls_rate', type=float, default=1)
     parser.add_argument('--ls_cls', type=str, default='TanhLS')
     # logging

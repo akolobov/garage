@@ -53,7 +53,7 @@ class VPG(RLAlgorithm):
 
         FIX
         append_terminal_val (bool): Whether to append the value evaluated at the last observation
-        
+
         PESSIMISM
         pessmistic_vae_filter (bool): Whether to filter state value estimates using a VAE.
         value_function (garage.shortrl.StateVAE): The VAE.
@@ -85,7 +85,7 @@ class VPG(RLAlgorithm):
     ):
         # HACK
         self._append_terminal_val = append_terminal_val
-        
+
         self._pessimistic_vae_filter = pessimistic_vae_filter
 
         self._discount = discount
@@ -129,7 +129,7 @@ class VPG(RLAlgorithm):
             else:
                 self._vae_optimizer = OptimizerWrapper(torch.optim.Adam,
                                                   vae)
-                                                  
+
         self._old_policy = copy.deepcopy(self.policy)
 
     @staticmethod
@@ -207,7 +207,6 @@ class VPG(RLAlgorithm):
                 # mask[np.arange(len(ind)), ind] =1
                 mask = np.random.randint(2, size=(len(returns_flat), self._value_function.ensemble_size))
                 eps.env_infos['Mask'] = mask
-                import pdb; pdb.set_trace()
             returns_flat = torch.unsqueeze(returns_flat,-1)
             returns_flat = torch.cat((returns_flat, torch.Tensor(eps.env_infos['Mask'])) , dim=-1)
 
@@ -381,7 +380,7 @@ class VPG(RLAlgorithm):
         self._vae_optimizer.step()
 
         return loss
-        
+
     def _compute_loss(self, obs, actions, rewards, valids, baselines):
         r"""Compute mean value of loss.
 
