@@ -27,8 +27,7 @@ def get_algo(*,
              policy_network_hidden_nonlinearity=torch.tanh,
              value_natwork_hidden_sizes=(256, 128),
              value_network_hidden_nonlinearity=torch.tanh,
-             value_ensemble_size=1, # ensemble size of value network
-             value_ensemble_mode='P', # ensemble mode of value network, P or O
+
              policy_lr=1e-3,  # optimization stepsize for policy update
              value_lr=1e-3,  # optimization stepsize for value regression
              opt_minibatch_size=128,  # optimization/replaybuffer minibatch size
@@ -48,6 +47,7 @@ def get_algo(*,
              kl_constraint=0.05,  # kl constraint between policy updates
              gae_lambda=0.98,  # lambda of gae estimator
              lr_clip_range=0.2, # the limit on the likelihood ratio between policies (PPO)
+             vae_latent_dim=32,
              **kwargs,
              ):
     # return alg for env with discount
@@ -55,6 +55,12 @@ def get_algo(*,
     assert isinstance(env, GymEnv) or env is None
     assert not (env is None and episode_batch is None)
     assert batch_size is not None
+
+    # Parse algo_name
+    if '_' in algo_name:
+        algo_name, ensemble_mode = algo_name.split('_')
+        value_ensemble_size= int(ensemble_mode[:-1]) # ensemble size of value network
+        value_ensemble_mode= ensemble_mode[-1] # ensemble mode of value network, P or O
 
     # For normalized behaviors
     opt_n_grad_steps = int(opt_n_grad_steps/steps_per_epoch)
@@ -138,13 +144,26 @@ def get_algo(*,
                     num_train_per_epoch=steps_per_epoch,
                     )
 
-    elif algo_name=='VPG':
+    elif algo_name in ['VPG', 'VAEVPG']:
         from garage.torch.algos import VPG
         policy = get_mlp_policy(stochastic=True, clip_output=False)
         value_function = get_mlp_value('V',
                                        ensemble_mode=value_ensemble_mode,
                                        ensemble_size=value_ensemble_size)
         sampler = get_sampler(policy)
+
+        # Use vae to induce pessimism.
+        vae = vae_optimizer = None
+        use_pessimism = False
+        if algo_name=='VAEVPG':
+            from garage.shortrl.vaes import StateVAE
+            use_pessimism = True
+            vae = StateVAE(env_spec=env_spec,
+                 hidden_sizes=value_natwork_hidden_sizes,
+                 hidden_nonlinearity=value_network_hidden_nonlinearity,
+                 latent_dim=vae_latent_dim)
+            vae_optimizer = get_wrapped_optimizer(vae, value_lr)
+
         algo = VPG(env_spec=env_spec,
                     policy=policy,
                     value_function=value_function,
@@ -155,7 +174,11 @@ def get_algo(*,
                     gae_lambda=gae_lambda,
                     policy_optimizer=OptimizerWrapper((torch.optim.Adam, dict(lr=policy_lr)),policy),
                     vf_optimizer=get_wrapped_optimizer(value_function, value_lr),
-                    num_train_per_epoch=steps_per_epoch)
+                    num_train_per_epoch=steps_per_epoch,
+                    pessimistic_vae_filter=use_pessimism,
+                    vae=vae,
+                    vae_optimizer=vae_optimizer,
+                    )
 
     elif algo_name=='SAC':
         from garage.torch.algos import SAC

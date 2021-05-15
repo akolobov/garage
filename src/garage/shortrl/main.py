@@ -208,11 +208,12 @@ def train_heuristics(
                      use_raw_snapshot=False,
                      snapshot_frequency=0,
                      save_mode='light',
+                     vae_loss_percentile=0,
                      **kwargs
                      ):
 
     if use_raw_snapshot:
-        heuristic = load_heuristic_from_snapshot(data_path, data_itr)
+        heuristic = load_heuristic_from_snapshot(data_path, data_itr, vae_loss_percentile)
         return heuristic
 
     train_from_mixed_data = isinstance(data_itr, list) or isinstance(data_itr, tuple)
@@ -254,7 +255,7 @@ def train_heuristics(
 
 
     print("Load heuristic snapshot.")
-    heuristic = load_heuristic_from_snapshot(log_dir, 'last')
+    heuristic = load_heuristic_from_snapshot(log_dir, 'last', vae_loss_percentile)
     assert heuristic is not None
     return heuristic
 
@@ -414,8 +415,6 @@ def run_exp(*,
             data_path=None,  # directory of the snapshot
             data_itr=None,
             episode_batch_size=50000,
-            offline_value_ensemble_size=1,
-            offline_value_ensemble_mode='P',
             # pretrain policy
             warmstart_policy=False,
             w_algo_name='BC',
@@ -459,8 +458,6 @@ def run_exp(*,
                                 batch_size=batch_size,
                                 seed=seed,
                                 use_raw_snapshot=use_raw_snapshot,
-                                value_ensemble_size=offline_value_ensemble_size,
-                                value_ensemble_mode=offline_value_ensemble_mode,
                                 **kwargs
                                 )
             if warmstart_policy:
@@ -488,7 +485,7 @@ def run_exp(*,
 
     # Define log_dir based on garage's logging convention
     exp_name = algo_name+'_'+ env_name[:min(len(env_name),5)]+\
-                '_{}_{}_{}'.format(lambd, str(use_heuristic)[0], str(warmstart_policy)[0])
+                '_{}_{}_{}'.format(lambd, str(h_algo_name), str(warmstart_policy)[0])
     prefix= os.path.join('shortrl',log_prefix,exp_name)
     name=str(seed)
     log_root = log_root or '.'
@@ -529,10 +526,11 @@ if __name__ == '__main__':
     parser.add_argument('-b', '--batch_size', type=int, default=10000)
     parser.add_argument('-s', '--seed', type=int, default=1)
     # offline batch data
-    parser.add_argument('--data_path', type=str, default='snapshots/SAC_Inver_1.0_F_F/120032374/')
-    parser.add_argument('--data_itr', type=int, default=8)
+    parser.add_argument('--data_path', type=str, default='snapshots/VPG_HalfC_1.0_F_F/1/')
+    parser.add_argument('--data_itr', type=int, default=0)
+    # parser.add_argument('--data_path', type=str, default='snapshots/SAC_HalfC_1.0_F_F/210566759/')
+    # parser.add_argument('--data_itr', type=int, default=(0,9))
     parser.add_argument('--episode_batch_size', type=int, default=10000) #50000)
-    parser.add_argument('--offline_value_ensemble_size', type=int, default=1)
     # pretrain policy
     parser.add_argument('-w', '--warmstart_policy', type=str2bool, default=False)
     parser.add_argument('--w_algo_name', type=str, default='BC')
@@ -543,6 +541,7 @@ if __name__ == '__main__':
     parser.add_argument('--use_raw_snapshot', type=str2bool, default=False)
     parser.add_argument('--h_algo_name', type=str, default='VPG')
     parser.add_argument('--h_n_epoch', type=int, default=30)
+    parser.add_argument('--vae_loss_percentile', type=int, default=0)
     parser.add_argument('--ls_rate', type=float, default=1)
     parser.add_argument('--ls_cls', type=str, default='TanhLS')
     # logging
@@ -561,4 +560,5 @@ if __name__ == '__main__':
 
     # Run experiment.
     args_dict = vars(args)
+
     run_exp(**args_dict)
