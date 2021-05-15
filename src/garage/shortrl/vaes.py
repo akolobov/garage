@@ -31,7 +31,7 @@ class StateVAE(GaussianMLPValueFunction):
                         max_std=1e15,
                         std_parameterization='exp',
                         layer_normalization=layer_normalization)
-                        
+
         self._decoder = MLPModule(
                         input_dim=latent_dim,
                         output_dim=input_dim,
@@ -52,5 +52,12 @@ class StateVAE(GaussianMLPValueFunction):
         pred, mean, std = self.forward(obs)
         reconstruction_loss = F.mse_loss(pred, obs)
         KL_loss = -0.5 * (1 + torch.log(std.pow(2)) - mean.pow(2) - std.pow(2)).mean()
+        loss = reconstruction_loss + 0.5 * KL_loss
+        return loss
+
+    def compute_batch_loss(self, obs):
+        pred, mean, std = self.forward(obs)
+        reconstruction_loss = torch.mean(F.mse_loss(pred, obs, reduction='none'), dim=1)
+        KL_loss = -0.5 * (1 + torch.log(std.pow(2)) - mean.pow(2) - std.pow(2)).mean(dim=1)
         loss = reconstruction_loss + 0.5 * KL_loss
         return loss

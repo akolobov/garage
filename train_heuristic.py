@@ -12,7 +12,7 @@ batch_size = 10000
 offline_value_ensemble_size = 1
 h_algo_name='VAEVPG'
 h_n_epoch = 50
-
+vae_loss_percentile = 1  # an interger from 0-99
 
 
 if env_name=='InvertedDoublePendulum-v2':
@@ -76,4 +76,6 @@ run_exp(algo_name=algo_name,
         use_heuristic=True,
         h_algo_name=h_algo_name,
         h_n_epoch=h_n_epoch,
+        # vae parameters
+        vae_loss_percentile=vae_loss_percentile,
         )

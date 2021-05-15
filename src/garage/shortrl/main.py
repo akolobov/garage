@@ -208,12 +208,12 @@ def train_heuristics(
                      use_raw_snapshot=False,
                      snapshot_frequency=0,
                      save_mode='light',
-                     pessimism_threshold=0,
+                     vae_loss_percentile=0,
                      **kwargs
                      ):
 
     if use_raw_snapshot:
-        heuristic = load_heuristic_from_snapshot(data_path, data_itr, pessimism_threshold)
+        heuristic = load_heuristic_from_snapshot(data_path, data_itr, vae_loss_percentile)
         return heuristic
 
     train_from_mixed_data = isinstance(data_itr, list) or isinstance(data_itr, tuple)
@@ -255,7 +255,7 @@ def train_heuristics(
 
 
     print("Load heuristic snapshot.")
-    heuristic = load_heuristic_from_snapshot(log_dir, 'last', pessimism_threshold)
+    heuristic = load_heuristic_from_snapshot(log_dir, 'last', vae_loss_percentile)
     assert heuristic is not None
     return heuristic
 
@@ -546,7 +546,7 @@ if __name__ == '__main__':
     parser.add_argument('--use_raw_snapshot', type=str2bool, default=False)
     parser.add_argument('--h_algo_name', type=str, default='VPG')
     parser.add_argument('--h_n_epoch', type=int, default=30)
-    parser.add_argument('--pessimism_threshold', type=float, default=0.0)
+    parser.add_argument('--vae_loss_percentile', type=int, default=0)
     parser.add_argument('--ls_rate', type=float, default=1)
     parser.add_argument('--ls_cls', type=str, default='TanhLS')
     # logging

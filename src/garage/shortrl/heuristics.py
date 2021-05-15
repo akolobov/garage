@@ -28,19 +28,19 @@ class _Pessimistic_Vf:
             return self._vf(obs)
         else:
             score = -self._vae.compute_loss(obs)
-            indicator = torch.sigmoid(100*(score - self._beta))
-
+            indicator = torch.sigmoid(100*(score + self._beta))
             values = indicator * self._vf(obs) + (1 - indicator) * self._vmin
             return values
 
-def get_algo_vf(algo, pessimism_threshold):
+def get_algo_vf(algo, vae_loss_percentile=None):
     # load heuristic
-    if type(algo).__name__ in ['PPO','TRPO', 'VPG']:
+    if type(algo).__name__ in ['PPO','TRPO']:
         vf = algo._value_function
     elif type(algo).__name__ in ['SAC', 'TD3', 'CQL']:
         qfs = [algo._qf1, algo._qf2]
         vf = _Vf(algo.policy, qfs)
-    elif type(algo).__name__ in ['VAEVPG']:
+    elif type(algo).__name__ in ['VPG']:  # TODO this can be ambiguous
+        pessimism_threshold = algo.vae_loss_percentile[vae_loss_percentile] if algo.vae_loss_percentile is not None else None
         vf = _Pessimistic_Vf(algo._value_function, algo._is_pessimistic, algo.vae,
                 algo._vmin, pessimism_threshold)
     else:
@@ -62,9 +62,9 @@ def load_policy_from_snapshot(path, itr='last'):
     policy = get_algo_policy(algo)
     return policy
 
-def load_heuristic_from_snapshot(path, itr='last', pessimism_threshold=0):
+def load_heuristic_from_snapshot(path, itr='last', vae_loss_percentile=0):
     snapshotter = Snapshotter()
     data = snapshotter.load(path, itr=itr)
     algo = data['algo']
-    vf = get_algo_vf(algo, pessimism_threshold)
+    vf = get_algo_vf(algo, vae_loss_percentile)
     return torch_method(vf)

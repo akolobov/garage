@@ -124,6 +124,7 @@ class VPG(RLAlgorithm):
         if self._pessimistic_vae_filter:
             self._vae = vae
             self._vmin = None
+            self.vae_loss_percentile = None
             if vae_optimizer:
                 self._vae_optimizer = vae_optimizer
             else:
@@ -234,6 +235,8 @@ class VPG(RLAlgorithm):
             policy_entropy = self._compute_policy_entropy(obs)
             if self._pessimistic_vae_filter:
                 vae_loss_after = self._vae.compute_loss(obs_flat)
+                batch_loss_after = self._vae.compute_batch_loss(obs_flat)
+                self.vae_loss_percentile = np.percentile(batch_loss_after.numpy(), np.arange(100))
 
         with tabular.prefix(self.policy.name):
             tabular.record('/LossBefore', policy_loss_before.item())
