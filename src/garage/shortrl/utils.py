@@ -14,7 +14,7 @@ def str2bool(v):
 def torch_stop_grad(torch_value):
     def wrapped_fun(x):
         with torch.no_grad():
-            return torch_value(torch.Tensor(x))
+            return torch_value(torch.Tensor(x)).numpy()
     return wrapped_fun
 
 
