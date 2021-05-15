@@ -183,6 +183,19 @@ def compute_episode_batch_returns(episode_batch):
         undiscounted_returns.append(sum(rewards))
     return np.mean(undiscounted_returns)
 
+def parse_data_itr(data_itr):
+    assert len(data_itr) in [2,3]
+    if len(data_itr)==2:
+        data_itr_st, data_itr_ed = data_itr
+        data_itr_sp = 1
+        data_itr_str = str(data_itr_st)+'_'+str(data_itr_ed)
+    else:
+        data_itr_st, data_itr_ed, data_itr_sp = data_itr
+        data_itr_str = str(data_itr_st)+'_'+str(data_itr_ed)+'_'+str(data_itr_sp)
+
+
+    return data_itr_st, data_itr_ed, data_itr_sp, data_itr_str
+
 
 def train_heuristics(
                      data_path,
@@ -207,9 +220,7 @@ def train_heuristics(
     episode_batch = None
     if train_from_mixed_data:
         # Train from a range of snapshots
-        assert len(data_itr)==2
-        data_itr_st, data_itr_ed = data_itr
-        data_itr_str = str(data_itr_st)+'_'+str(data_itr_ed)
+        data_itr_st, data_itr_ed, data_itr_sp, data_itr_str = parse_data_itr(data_itr)
         log_dir = os.path.join(data_path,'itr_'+data_itr_str+'_heuristic_'+algo_name)
         snapshot_path = os.path.join(log_dir,'params.pkl')
         if not os.path.exists(snapshot_path):
@@ -266,9 +277,7 @@ def pretrain_policy(data_path,
     episode_batch = None
     if train_from_mixed_data:
         # Train from a range of snapshots
-        assert len(data_itr)==2
-        data_itr_st, data_itr_ed = data_itr
-        data_itr_str = str(data_itr_st)+'_'+str(data_itr_ed)
+        data_itr_st, data_itr_ed, data_itr_sp, data_itr_str = parse_data_itr(data_itr)
         log_dir = os.path.join(data_path,'itr_'+data_itr_str+'_init_policy_'+algo_name)
         snapshot_path = os.path.join(log_dir,'params.pkl')
         if not os.path.exists(snapshot_path):
@@ -354,6 +363,44 @@ def train_agent(*,
     return score
 
 
+def collect_batch_data(data_path,
+                       data_itr,
+                       *,
+                       env,
+                       episode_batch_size,
+                       seed=1,
+                       n_workers=4,
+                       sampler_mode='ray'):
+    # Collect episode_batch and save it
+    train_from_mixed_data = isinstance(data_itr, list) or isinstance(data_itr, tuple)
+    if train_from_mixed_data:
+        data_itr_st, data_itr_ed, data_itr_sp, data_itr_str = parse_data_itr(data_itr)
+        set_seed(seed)
+        episode_batch = []
+        for itr in range(data_itr_st, data_itr_ed, data_itr_sp):
+            expert_policy = load_policy_from_snapshot(data_path, itr)
+            eps = ru.collect_episode_batch(
+                                policy=expert_policy,
+                                env=env,
+                                batch_size=episode_batch_size,
+                                n_workers=n_workers,
+                                sampler_mode=sampler_mode)
+            episode_batch.append(eps)
+
+        data_itr_str = str(data_itr_st)+'_'+str(data_itr_ed)+'_'+str(data_itr_sp)
+    else:
+        expert_policy = load_policy_from_snapshot(data_path, data_itr)
+        set_seed(seed)
+        episode_batch = ru.collect_episode_batch(
+                            policy=expert_policy,
+                            env=env,
+                            batch_size=episode_batch_size,
+                            n_workers=n_workers,
+                            sampler_mode=sampler_mode)
+        data_itr_str = str(data_itr)
+    filepath = os.path.join(data_path,'itr_'+data_itr_str+'_batch.pkl')
+    pickle.dump(episode_batch, open(filepath, "wb"))
+
 
 # Run this.
 def run_exp(*,
@@ -432,38 +479,13 @@ def run_exp(*,
             successful_init = True
 
         except FileNotFoundError:
-            # Collect episode_batch and save it
             print("No batch data found. Collect new data.")
+            collect_batch_data(data_path,
+                               data_itr,
+                               env=env,
+                               episode_batch_size=episode_batch_size,
+                               seed=seed)
 
-            train_from_mixed_data = isinstance(data_itr, list) or isinstance(data_itr, tuple)
-            if train_from_mixed_data:
-                assert len(data_itr)==2
-                data_itr_st, data_itr_ed = data_itr
-                set_seed(seed)
-                episode_batch = []
-                for itr in range(data_itr_st, data_itr_ed):
-                    expert_policy = load_policy_from_snapshot(data_path, itr)
-                    eps = ru.collect_episode_batch(
-                                        policy=expert_policy,
-                                        env=env,
-                                        batch_size=episode_batch_size,
-                                        n_workers=kwargs.get('n_workers', 4),
-                                        sampler_mode=kwargs.get('sampler_mode', 'ray'))
-                    episode_batch.append(eps)
-
-                data_itr_str = str(data_itr_st)+'_'+str(data_itr_ed)
-            else:
-                expert_policy = load_policy_from_snapshot(data_path, data_itr)
-                set_seed(seed)
-                episode_batch = ru.collect_episode_batch(
-                                    policy=expert_policy,
-                                    env=env,
-                                    batch_size=episode_batch_size,
-                                    n_workers=kwargs.get('n_workers', 4),
-                                    sampler_mode=kwargs.get('sampler_mode', 'ray'))
-                data_itr_str = str(data_itr)
-            filepath = os.path.join(data_path,'itr_'+data_itr_str+'_batch.pkl')
-            pickle.dump(episode_batch, open(filepath, "wb"))
 
     # Define log_dir based on garage's logging convention
     exp_name = algo_name+'_'+ env_name[:min(len(env_name),5)]+\
@@ -510,12 +532,14 @@ if __name__ == '__main__':
     # offline batch data
     parser.add_argument('--data_path', type=str, default='snapshots/VPG_HalfC_1.0_F_F/1/')
     parser.add_argument('--data_itr', type=int, default=0)
+    # parser.add_argument('--data_path', type=str, default='snapshots/SAC_HalfC_1.0_F_F/210566759/')
+    # parser.add_argument('--data_itr', type=int, default=(0,9))
     parser.add_argument('--episode_batch_size', type=int, default=10000) #50000)
     parser.add_argument('--offline_value_ensemble_size', type=int, default=1)
     # pretrain policy
     parser.add_argument('-w', '--warmstart_policy', type=str2bool, default=False)
     parser.add_argument('--w_algo_name', type=str, default='BC')
-    parser.add_argument('--w_n_epoch', type=int, default=30)
+    parser.add_argument('--w_n_epoch', type=int, default=8)
     # short-horizon RL params
     parser.add_argument('-l', '--lambd', type=float, default=1.0)
     parser.add_argument('-u', '--use_heuristic', type=str2bool, default=False)
@@ -542,8 +566,8 @@ if __name__ == '__main__':
 
     # Run experiment.
     args_dict = vars(args)
-    
+
     if args.use_pessimism:
         args.log_prefix = args.log_prefix + '_Pessimistic'
-        
+
     run_exp(**args_dict)
