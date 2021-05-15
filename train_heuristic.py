@@ -7,10 +7,10 @@ from src.garage.shortrl.main import run_exp
 algo_name='SAC'
 discount = None
 n_epochs = 50
-env_name = 'Ant-v2'
+env_name = 'HalfCheetah-v2'
 batch_size = 10000
 offline_value_ensemble_size = 1
-h_algo_name='VPG'
+h_algo_name='VAEVPG'
 h_n_epoch = 50
 
 
@@ -25,7 +25,7 @@ if env_name=='InvertedDoublePendulum-v2':
 
 if env_name=='HalfCheetah-v2':
     data_path= 'snapshots/SAC_HalfC_1.0_F_F/210566759/'
-    data_itr = [0,20]
+    data_itr = 20 # [0,20]
     policy_network_hidden_sizes=(64, 64)
     value_natwork_hidden_sizes=(256, 256)
     h_n_epoch = 30
@@ -49,7 +49,7 @@ if env_name=='Ant-v2':
 
 
 
-w_n_epoch = data_itr[1]-data_itr[0] if len(data_itr)>1 else 30
+w_n_epoch = data_itr[1]-data_itr[0] if len([data_itr])>1 else 30
 episode_batch_size = batch_size
 
 run_exp(algo_name=algo_name,

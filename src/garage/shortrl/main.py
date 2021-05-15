@@ -546,7 +546,6 @@ if __name__ == '__main__':
     parser.add_argument('--use_raw_snapshot', type=str2bool, default=False)
     parser.add_argument('--h_algo_name', type=str, default='VPG')
     parser.add_argument('--h_n_epoch', type=int, default=30)
-    parser.add_argument('--use_pessimism', type=str2bool, default=False)
     parser.add_argument('--pessimism_threshold', type=float, default=0.0)
     parser.add_argument('--ls_rate', type=float, default=1)
     parser.add_argument('--ls_cls', type=str, default='TanhLS')
@@ -566,8 +565,5 @@ if __name__ == '__main__':
 
     # Run experiment.
     args_dict = vars(args)
-
-    if args.use_pessimism:
-        args.log_prefix = args.log_prefix + '_Pessimistic'
 
     run_exp(**args_dict)
