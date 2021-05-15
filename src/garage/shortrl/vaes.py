@@ -1,14 +1,14 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
-from garage.torch.modules import GaussianMLPModule
+from garage.torch.modules import MLPModule, GaussianMLPTwoHeadedModule
 from garage.torch.value_functions.gaussian_mlp_value_function import GaussianMLPValueFunction
 
 class StateVAE(GaussianMLPValueFunction):
     def __init__(self,
                  env_spec,
                  hidden_sizes=(64, 64),
-                 hidden_nonlinearity=torch.ReLU,
+                 hidden_nonlinearity=torch.tanh,
                  hidden_w_init=nn.init.xavier_uniform_,
                  hidden_b_init=nn.init.zeros_,
                  latent_dim=32,
@@ -32,7 +32,7 @@ class StateVAE(GaussianMLPValueFunction):
                         std_parameterization='exp',
                         layer_normalization=layer_normalization)
                         
-        self._decoder = GaussianMLPModule(
+        self._decoder = MLPModule(
                         input_dim=latent_dim,
                         output_dim=input_dim,
                         hidden_sizes=hidden_sizes[::-1],
@@ -40,13 +40,11 @@ class StateVAE(GaussianMLPValueFunction):
                         hidden_w_init=hidden_w_init,
                         hidden_b_init=hidden_b_init,
                         output_nonlinearity=None,
-                        learn_std=False,
                         layer_normalization=layer_normalization)
 
     def forward(self, obs):
         dist = self._encoder(obs)
-        z = dist.rsample(obs.shape[0])
-        print(obs, z)
+        z = dist.rsample()
         u = self._decoder(z)
         return u, dist.mean, dist.stddev
 
@@ -54,5 +52,5 @@ class StateVAE(GaussianMLPValueFunction):
         pred, mean, std = self.forward(obs)
         reconstruction_loss = F.mse_loss(pred, obs)
         KL_loss = -0.5 * (1 + torch.log(std.pow(2)) - mean.pow(2) - std.pow(2)).mean()
-        loss = recon_loss + 0.5 * KL_loss
+        loss = reconstruction_loss + 0.5 * KL_loss
         return loss

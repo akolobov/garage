@@ -48,6 +48,7 @@ def get_algo(*,
              kl_constraint=0.05,  # kl constraint between policy updates
              gae_lambda=0.98,  # lambda of gae estimator
              lr_clip_range=0.2, # the limit on the likelihood ratio between policies (PPO)
+             use_pessimism=False,
              **kwargs,
              ):
     # return alg for env with discount
@@ -140,11 +141,21 @@ def get_algo(*,
 
     elif algo_name=='VPG':
         from garage.torch.algos import VPG
+        from garage.shortrl.vaes import StateVAE 
         policy = get_mlp_policy(stochastic=True, clip_output=False)
         value_function = get_mlp_value('V',
                                        ensemble_mode=value_ensemble_mode,
                                        ensemble_size=value_ensemble_size)
         sampler = get_sampler(policy)
+        vae = None
+        vae_optimizer = None
+        if use_pessimism:
+            vae = StateVAE(env_spec=env_spec,
+                 hidden_sizes=value_natwork_hidden_sizes,
+                 hidden_nonlinearity=value_network_hidden_nonlinearity,
+                 latent_dim=32)
+            vae_optimizer = get_wrapped_optimizer(vae, value_lr)
+                 
         algo = VPG(env_spec=env_spec,
                     policy=policy,
                     value_function=value_function,
@@ -155,7 +166,11 @@ def get_algo(*,
                     gae_lambda=gae_lambda,
                     policy_optimizer=OptimizerWrapper((torch.optim.Adam, dict(lr=policy_lr)),policy),
                     vf_optimizer=get_wrapped_optimizer(value_function, value_lr),
-                    num_train_per_epoch=steps_per_epoch)
+                    num_train_per_epoch=steps_per_epoch,
+                    pessimistic_vae_filter=use_pessimism,
+                    vae=vae,
+                    vae_optimizer=vae_optimizer,
+                    )
 
     elif algo_name=='SAC':
         from garage.torch.algos import SAC

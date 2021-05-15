@@ -195,7 +195,6 @@ def train_heuristics(
                      use_raw_snapshot=False,
                      snapshot_frequency=0,
                      save_mode='light',
-                     use_pessimism=False,
                      pessimism_threshold=0,
                      **kwargs
                      ):
@@ -381,8 +380,6 @@ def run_exp(*,
             use_heuristic=False,
             h_algo_name='VPG',
             h_n_epoch=30,
-            use_pessimism=False,
-            pessimism_threshold=0,
             # logging
             snapshot_frequency=0,  # 0 means only taking the last snapshot
             log_root=None,
@@ -416,8 +413,6 @@ def run_exp(*,
                                 batch_size=batch_size,
                                 seed=seed,
                                 use_raw_snapshot=use_raw_snapshot,
-                                use_pessimism=use_pessimism,
-                                pessimism_threshold=pessimism_threshold,
                                 value_ensemble_size=offline_value_ensemble_size,
                                 value_ensemble_mode=offline_value_ensemble_mode,
                                 **kwargs
@@ -513,8 +508,8 @@ if __name__ == '__main__':
     parser.add_argument('-b', '--batch_size', type=int, default=10000)
     parser.add_argument('-s', '--seed', type=int, default=1)
     # offline batch data
-    parser.add_argument('--data_path', type=str, default='snapshots/SAC_HalfC_1.0_F_F/210566759/')
-    parser.add_argument('--data_itr', type=int, default=(0,20))
+    parser.add_argument('--data_path', type=str, default='snapshots/VPG_HalfC_1.0_F_F/1/')
+    parser.add_argument('--data_itr', type=int, default=0)
     parser.add_argument('--episode_batch_size', type=int, default=10000) #50000)
     parser.add_argument('--offline_value_ensemble_size', type=int, default=1)
     # pretrain policy
@@ -547,4 +542,8 @@ if __name__ == '__main__':
 
     # Run experiment.
     args_dict = vars(args)
+    
+    if args.use_pessimism:
+        args.log_prefix = args.log_prefix + '_Pessimistic'
+        
     run_exp(**args_dict)
