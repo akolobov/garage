@@ -25,7 +25,7 @@ if env_name=='InvertedDoublePendulum-v2':
 
 if env_name=='HalfCheetah-v2':
     data_path= 'snapshots/SAC_HalfC_1.0_F_F/210566759/'
-    data_itr = 20 # [0,20]
+    data_itr = [0,20]
     policy_network_hidden_sizes=(64, 64)
     value_natwork_hidden_sizes=(256, 256)
     h_n_epoch = 30

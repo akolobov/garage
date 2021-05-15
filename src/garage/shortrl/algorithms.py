@@ -27,8 +27,7 @@ def get_algo(*,
              policy_network_hidden_nonlinearity=torch.tanh,
              value_natwork_hidden_sizes=(256, 128),
              value_network_hidden_nonlinearity=torch.tanh,
-             value_ensemble_size=1, # ensemble size of value network
-             value_ensemble_mode='P', # ensemble mode of value network, P or O
+
              policy_lr=1e-3,  # optimization stepsize for policy update
              value_lr=1e-3,  # optimization stepsize for value regression
              opt_minibatch_size=128,  # optimization/replaybuffer minibatch size
@@ -56,6 +55,12 @@ def get_algo(*,
     assert isinstance(env, GymEnv) or env is None
     assert not (env is None and episode_batch is None)
     assert batch_size is not None
+
+    # Parse algo_name
+    if '_' in algo_name:
+        algo_name, ensemble_mode = algo_name.split('_')
+        value_ensemble_size= int(ensemble_mode[:-1]) # ensemble size of value network
+        value_ensemble_mode= ensemble_mode[-1] # ensemble mode of value network, P or O
 
     # For normalized behaviors
     opt_n_grad_steps = int(opt_n_grad_steps/steps_per_epoch)
@@ -149,6 +154,7 @@ def get_algo(*,
 
         # Use vae to induce pessimism.
         vae = vae_optimizer = None
+        use_pessimism = False
         if algo_name=='VAEVPG':
             from garage.shortrl.vaes import StateVAE
             use_pessimism = True

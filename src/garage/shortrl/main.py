@@ -415,8 +415,6 @@ def run_exp(*,
             data_path=None,  # directory of the snapshot
             data_itr=None,
             episode_batch_size=50000,
-            offline_value_ensemble_size=1,
-            offline_value_ensemble_mode='P',
             # pretrain policy
             warmstart_policy=False,
             w_algo_name='BC',
@@ -460,8 +458,6 @@ def run_exp(*,
                                 batch_size=batch_size,
                                 seed=seed,
                                 use_raw_snapshot=use_raw_snapshot,
-                                value_ensemble_size=offline_value_ensemble_size,
-                                value_ensemble_mode=offline_value_ensemble_mode,
                                 **kwargs
                                 )
             if warmstart_policy:
@@ -489,7 +485,7 @@ def run_exp(*,
 
     # Define log_dir based on garage's logging convention
     exp_name = algo_name+'_'+ env_name[:min(len(env_name),5)]+\
-                '_{}_{}_{}'.format(lambd, str(use_heuristic)[0], str(warmstart_policy)[0])
+                '_{}_{}_{}'.format(lambd, str(h_algo_name), str(warmstart_policy)[0])
     prefix= os.path.join('shortrl',log_prefix,exp_name)
     name=str(seed)
     log_root = log_root or '.'
@@ -535,7 +531,6 @@ if __name__ == '__main__':
     # parser.add_argument('--data_path', type=str, default='snapshots/SAC_HalfC_1.0_F_F/210566759/')
     # parser.add_argument('--data_itr', type=int, default=(0,9))
     parser.add_argument('--episode_batch_size', type=int, default=10000) #50000)
-    parser.add_argument('--offline_value_ensemble_size', type=int, default=1)
     # pretrain policy
     parser.add_argument('-w', '--warmstart_policy', type=str2bool, default=False)
     parser.add_argument('--w_algo_name', type=str, default='BC')

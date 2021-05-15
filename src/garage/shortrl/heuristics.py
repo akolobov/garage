@@ -40,7 +40,10 @@ def get_algo_vf(algo, vae_loss_percentile=None):
         qfs = [algo._qf1, algo._qf2]
         vf = _Vf(algo.policy, qfs)
     elif type(algo).__name__ in ['VPG']:  # TODO this can be ambiguous
-        pessimism_threshold = algo.vae_loss_percentile[vae_loss_percentile] if algo.vae_loss_percentile is not None else None
+        pessimism_threshold = None
+        if vae_loss_percentile is not None and algo.vae_loss_percentile is not None:
+            pessimism_threshold = algo.vae_loss_percentile[vae_loss_percentile]
+
         vf = _Pessimistic_Vf(algo._value_function, algo._is_pessimistic, algo.vae,
                 algo._vmin, pessimism_threshold)
     else:
