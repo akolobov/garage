@@ -35,12 +35,12 @@ class _Pessimistic_Vf:
 
 def get_algo_vf(algo, pessimism_threshold):
     # load heuristic
-    if type(algo).__name__ in ['PPO','TRPO']:
+    if type(algo).__name__ in ['PPO','TRPO', 'VPG']:
         vf = algo._value_function
     elif type(algo).__name__ in ['SAC', 'TD3', 'CQL']:
         qfs = [algo._qf1, algo._qf2]
         vf = _Vf(algo.policy, qfs)
-    elif type(algo).__name__ in ['VPG']:
+    elif type(algo).__name__ in ['VAEVPG']:
         vf = _Pessimistic_Vf(algo._value_function, algo._is_pessimistic, algo.vae,
                 algo._vmin, pessimism_threshold)
     else:
@@ -66,5 +66,5 @@ def load_heuristic_from_snapshot(path, itr='last', pessimism_threshold=0):
     snapshotter = Snapshotter()
     data = snapshotter.load(path, itr=itr)
     algo = data['algo']
-    vf = get_algo_vf(algo)
+    vf = get_algo_vf(algo, pessimism_threshold)
     return torch_method(vf)
