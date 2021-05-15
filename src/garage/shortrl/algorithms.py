@@ -57,6 +57,8 @@ def get_algo(*,
     assert batch_size is not None
 
     # Parse algo_name
+    value_ensemble_mode='P'
+    value_ensemble_size=1
     if '_' in algo_name:
         algo_name, ensemble_mode = algo_name.split('_')
         value_ensemble_size= int(ensemble_mode[:-1]) # ensemble size of value network
