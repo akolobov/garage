@@ -3,14 +3,13 @@ from src.garage.shortrl.main import run_exp
 
 
 # Config
-
 algo_name='SAC'
 discount = None
 n_epochs = 50
 env_name = 'HalfCheetah-v2'
 batch_size = 10000
 offline_value_ensemble_size = 1
-h_algo_name='VAEVPG'
+h_algo_name='VPG'
 h_n_epoch = 50
 vae_loss_percentile = 1  # an interger from 0-99
 
