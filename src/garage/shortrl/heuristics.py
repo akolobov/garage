@@ -1,6 +1,6 @@
 from garage.experiment import Snapshotter
 import torch
-from garage.shortrl.utils import torch_stop_grad
+from garage.shortrl.utils import torch_method
 import copy
 from functools import partial
 
@@ -22,17 +22,17 @@ class _Pessimistic_Vf:
         self._is_pessimistic = is_pessimistic
         self._vmin = vmin
         self._beta = beta
-        
+
     def __call__(self, obs):
         if not self._is_pessimistic or self._beta is None or self._beta == 0:
             return self._vf(obs)
-        else:    
+        else:
             score = -self._vae.compute_loss(obs)
             indicator = torch.sigmoid(100*(score - self._beta))
-        
+
             values = indicator * self._vf(obs) + (1 - indicator) * self._vmin
             return values
-        
+
 def get_algo_vf(algo, pessimism_threshold):
     # load heuristic
     if type(algo).__name__ in ['PPO','TRPO']:
@@ -41,7 +41,7 @@ def get_algo_vf(algo, pessimism_threshold):
         qfs = [algo._qf1, algo._qf2]
         vf = _Vf(algo.policy, qfs)
     elif type(algo).__name__ in ['VPG']:
-        vf = _Pessimistic_Vf(algo._value_function, algo._is_pessimistic, algo.vae, 
+        vf = _Pessimistic_Vf(algo._value_function, algo._is_pessimistic, algo.vae,
                 algo._vmin, pessimism_threshold)
     else:
         raise ValueError('Unsupported algorithm.')
@@ -66,5 +66,5 @@ def load_heuristic_from_snapshot(path, itr='last', pessimism_threshold=0):
     snapshotter = Snapshotter()
     data = snapshotter.load(path, itr=itr)
     algo = data['algo']
-    vf = get_algo_vf(algo, pessimism_threshold)
-    return torch_stop_grad(vf)
+    vf = get_algo_vf(algo)
+    return torch_method(vf)

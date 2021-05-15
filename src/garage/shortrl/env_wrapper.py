@@ -28,7 +28,7 @@ class ShortMDP(gym.Wrapper):
 
         info['h'] = 0
         if (not done or 'TimeLimit.truncated' in info) and self._heuristic is not None:
-            h = self._heuristic(np.array([obs]))
+            h = float(self._heuristic(np.array([obs])))
             info['h'] = h
             reward += (1-self._lambd) * self._gamma * h
 

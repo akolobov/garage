@@ -11,10 +11,10 @@ def str2bool(v):
         raise TypeError('Boolean value expected.')
 
 
-def torch_stop_grad(torch_value):
+def torch_method(torch_fun):
     def wrapped_fun(x):
         with torch.no_grad():
-            return torch_value(torch.Tensor(x)).numpy()
+            return torch_fun(torch.Tensor(x)).numpy()
     return wrapped_fun
 
 
