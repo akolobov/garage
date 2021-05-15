@@ -41,7 +41,7 @@ def get_algo_vf(algo, pessimism_threshold):
         qfs = [algo._qf1, algo._qf2]
         vf = _Vf(algo.policy, qfs)
     elif type(algo).__name__ in ['VPG']:
-        vf = _Pessimistic_Vf(algo._value_function, algo._pessimistic_vae_filter, algo._vae, 
+        vf = _Pessimistic_Vf(algo._value_function, algo._is_pessimistic, algo.vae, 
                 algo._vmin, pessimism_threshold)
     else:
         raise ValueError('Unsupported algorithm.')
