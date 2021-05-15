@@ -1,6 +1,6 @@
 from garage.experiment import Snapshotter
 import torch
-from garage.shortrl.utils import torch_stop_grad
+from garage.shortrl.utils import torch_method
 import copy
 from functools import partial
 
@@ -46,4 +46,4 @@ def load_heuristic_from_snapshot(path, itr='last'):
     data = snapshotter.load(path, itr=itr)
     algo = data['algo']
     vf = get_algo_vf(algo)
-    return torch_stop_grad(vf)
+    return torch_method(vf)
