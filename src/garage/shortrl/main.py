@@ -195,11 +195,13 @@ def train_heuristics(
                      use_raw_snapshot=False,
                      snapshot_frequency=0,
                      save_mode='light',
+                     use_pessimism=False,
+                     pessimism_threshold=0,
                      **kwargs
                      ):
 
     if use_raw_snapshot:
-        heuristic = load_heuristic_from_snapshot(data_path, data_itr)
+        heuristic = load_heuristic_from_snapshot(data_path, data_itr, pessimism_threshold)
         return heuristic
 
     train_from_mixed_data = isinstance(data_itr, list) or isinstance(data_itr, tuple)
@@ -243,7 +245,7 @@ def train_heuristics(
 
 
     print("Load heuristic snapshot.")
-    heuristic = load_heuristic_from_snapshot(log_dir, 'last')
+    heuristic = load_heuristic_from_snapshot(log_dir, 'last', pessimism_threshold)
     assert heuristic is not None
     return heuristic
 
@@ -379,6 +381,8 @@ def run_exp(*,
             use_heuristic=False,
             h_algo_name='VPG',
             h_n_epoch=30,
+            use_pessimism=False,
+            pessimism_threshold=0,
             # logging
             snapshot_frequency=0,  # 0 means only taking the last snapshot
             log_root=None,
@@ -412,6 +416,8 @@ def run_exp(*,
                                 batch_size=batch_size,
                                 seed=seed,
                                 use_raw_snapshot=use_raw_snapshot,
+                                use_pessimism=use_pessimism,
+                                pessimism_threshold=pessimism_threshold,
                                 value_ensemble_size=offline_value_ensemble_size,
                                 value_ensemble_mode=offline_value_ensemble_mode,
                                 **kwargs
@@ -521,7 +527,9 @@ if __name__ == '__main__':
     parser.add_argument('--use_raw_snapshot', type=str2bool, default=False)
     parser.add_argument('--h_algo_name', type=str, default='VPG')
     parser.add_argument('--h_n_epoch', type=int, default=30)
-    parser.add_argument('--ls_rate', type=float(), default=1)
+    parser.add_argument('--use_pessimism', type=str2bool, default=False)
+    parser.add_argument('--pessimism_threshold', type=float, default=0.0)
+    parser.add_argument('--ls_rate', type=float, default=1)
     parser.add_argument('--ls_cls', type=str, default='TanhLS')
     # logging
     parser.add_argument('--snapshot_frequency', type=int, default=0)

@@ -18,11 +18,15 @@ from garage.shortrl.utils import read_attr_from_csv
 
 def get_algodata_cls(algo):
     class Cls:
-        def __init__(self, policy, vf, qf1, qf2):
+        def __init__(self, policy, vf, qf1, qf2, pessimistic, vae, vmin):
             self.policy = policy
             self._value_function = vf
             self._qf1 = qf1
             self._qf2 = qf2
+            self._is_pessimistic = pessimistic
+            self.vae = vae
+            self._vmin = vmin
+            
     Cls.__name__ = type(algo).__name__
     return Cls
 
@@ -73,7 +77,10 @@ class Trainer(garageTrainer):
             algodata = AlgoData(policy=self._algo.policy,
                                 vf=getattr(self._algo, '_value_function', None),
                                 qf1=getattr(self._algo, '_qf1', None),
-                                qf2=getattr(self._algo, '_qf2', None))
+                                qf2=getattr(self._algo, '_qf2', None),
+                                pessimistic=getattr(self._algo, '_pessimistic_vae_filter', False),
+                                vae=getattr(self._algo, '_vae', None),
+                                vmin=getattr(self._algo, '_vmin', None))
             params['algo'] = algodata
 
         else:  # default behavior: save everything

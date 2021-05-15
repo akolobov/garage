@@ -53,7 +53,12 @@ class VPG(RLAlgorithm):
 
         FIX
         append_terminal_val (bool): Whether to append the value evaluated at the last observation
-
+        
+        PESSIMISM
+        pessmistic_vae_filter (bool): Whether to filter state value estimates using a VAE.
+        value_function (garage.shortrl.StateVAE): The VAE.
+        vae_optimizer (garage.torch.optimizer.OptimizerWrapper): Optimizer for
+            variational auto-encoder.
     """
 
     def __init__(
@@ -74,9 +79,14 @@ class VPG(RLAlgorithm):
         stop_entropy_gradient=False,
         entropy_method='no_entropy',
         append_terminal_val=True,
+        pessimistic_vae_filter=False,
+        vae=None,
+        vae_optimizer=None,
     ):
         # HACK
         self._append_terminal_val = append_terminal_val
+        
+        self._pessimistic_vae_filter = pessimistic_vae_filter
 
         self._discount = discount
         self.policy = policy
@@ -111,6 +121,15 @@ class VPG(RLAlgorithm):
             self._vf_optimizer = OptimizerWrapper(torch.optim.Adam,
                                                   value_function)
 
+        if self._pessimistic_vae_filter:
+            self._vae = vae
+            self._vmin = None
+            if vae_optimizer:
+                self._vae_optimizer = vae_optimizer
+            else:
+                self._vae_optimizer = OptimizerWrapper(torch.optim.Adam,
+                                                  vae)
+                                                  
         self._old_policy = copy.deepcopy(self.policy)
 
     @staticmethod
@@ -198,6 +217,11 @@ class VPG(RLAlgorithm):
             vf_loss_before = self._value_function.compute_loss(
                 obs_flat, returns_flat)
             kl_before = self._compute_kl_constraint(obs)
+            if self._pessimistic_vae_filter:
+                vae_loss_before = self._vae.compute_loss(obs_flat)
+                vmin = torch.min(returns_flat).item()
+                if self._vmin is None or self._vmin > vmin:
+                    self._vmin = vmin
 
         self._train(obs_flat, actions_flat, rewards_flat, returns_flat,
                     advs_flat)
@@ -209,6 +233,8 @@ class VPG(RLAlgorithm):
                 obs_flat, returns_flat)
             kl_after = self._compute_kl_constraint(obs)
             policy_entropy = self._compute_policy_entropy(obs)
+            if self._pessimistic_vae_filter:
+                vae_loss_after = self._vae.compute_loss(obs_flat)
 
         with tabular.prefix(self.policy.name):
             tabular.record('/LossBefore', policy_loss_before.item())
@@ -230,6 +256,13 @@ class VPG(RLAlgorithm):
                 uncertainty = self._value_function.uncertainty(obs_flat)
                 tabular.record('/uncertainty', np.max(uncertainty.detach().numpy()))
 
+        if self._pessimistic_vae_filter:
+            with tabular.prefix(self._vae.name):
+                tabular.record('/LossBefore', vae_loss_before.item())
+                tabular.record('/LossAfter', vae_loss_after.item())
+                tabular.record('/dLoss',
+                            vae_loss_before.item() - vae_loss_after.item())
+                tabular.record('/vMin', self._vmin)
 
         self._old_policy.load_state_dict(self.policy.state_dict())
 
@@ -279,6 +312,9 @@ class VPG(RLAlgorithm):
             self._train_policy(*dataset)
         for dataset in self._vf_optimizer.get_minibatch(obs, returns):
             self._train_value_function(*dataset)
+        if self._pessimistic_vae_filter:
+            for dataset in self._vae_optimizer.get_minibatch(obs):
+                self._train_vae(*dataset)
 
     def _train_policy(self, obs, actions, rewards, advantages):
         r"""Train the policy.
@@ -325,6 +361,27 @@ class VPG(RLAlgorithm):
 
         return loss
 
+    def _train_vae(self, obs):
+        r"""Train the vae.
+
+        Args:
+            obs (torch.Tensor): Observation from the environment
+                with shape :math:`(N, O*)`.
+            returns (torch.Tensor): VAE reconstruction + KL errors
+                with shape :math:`(N, )`.
+
+        Returns:
+            torch.Tensor: Calculated mean scalar value of reconstruction error + KL loss
+                (float).
+
+        """
+        self._vae_optimizer.zero_grad()
+        loss = self._vae.compute_loss(obs)
+        loss.backward()
+        self._vae_optimizer.step()
+
+        return loss
+        
     def _compute_loss(self, obs, actions, rewards, valids, baselines):
         r"""Compute mean value of loss.
 
