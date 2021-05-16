@@ -105,7 +105,7 @@ def read_attr(csv_path, attr):
         try:
             row = next(reader)
         except Exception:
-            return Nonen
+            return None
         if attr not in row:
             return None
         idx = row.index(attr)  # the column number for this attribute
