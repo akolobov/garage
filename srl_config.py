@@ -39,8 +39,8 @@ def default_config(env_name, algo_name='SAC', h_algo_name='VPG', w_algo_name='BC
         opt_minibatch_size=128,  # optimization/replaybuffer minibatch size
         opt_n_grad_steps=1000,   # number of gradient updates
         num_evaluation_episodes=10,  # Number of evaluation episodes
-        value_natwork_hidden_sizes=(256,256),
-        policy_natwork_hidden_sizes=(64,64),
+        value_network_hidden_sizes=[256,256],
+        policy_network_hidden_sizes=[64,64],
         n_workers=4,             # CAREFUL! Check the "conc_runs_per_node" property above. If conc_runs_per_node * n_workers > number of CPU cores on the target machine, the concurrent runs will likely interfere with each other.
         use_gpu=False,
         sampler_mode='ray',
@@ -54,8 +54,8 @@ def default_config(env_name, algo_name='SAC', h_algo_name='VPG', w_algo_name='BC
         config['data_path'] = 'snapshots/SAC_Inver_1.0_F_F/120032374/'
         config['data_itr'] = [0,9]
         config['episode_batch_size'] = config['batch_size']
-        config['policy_network_hidden_sizes'] = (64, 64)
-        config['value_natwork_hidden_sizes'] = (256, 256)
+        config['policy_network_hidden_sizes'] = [64,64]
+        config['value_network_hidden_sizes'] = [256,256]
         config['n_epochs'] = 20
         config['h_n_epoch'] = 30
         config['w_n_epoch'] = 30
@@ -68,13 +68,13 @@ def default_config(env_name, algo_name='SAC', h_algo_name='VPG', w_algo_name='BC
         config['data_path']= 'snapshots/SAC_HalfC_1.0_F_F/210566759/'
         config['data_itr'] = [0,20]
         config['episode_batch_size'] = config['batch_size']
-        config['policy_network_hidden_sizes'] = (64, 64)
-        config['value_natwork_hidden_sizes'] = (256, 256)
+        config['policy_network_hidden_sizes'] = [64,64]
+        config['value_network_hidden_sizes'] = [256,256]
         config['n_epochs'] = 50
         config['h_n_epoch'] = 30
         config['w_n_epoch'] = 30
-        config['value_lr'] = 5e-4
-        config['policy_lr'] = 1e-3
+        config['value_lr'] = 1e-3 # 5e-4
+        config['policy_lr'] = 5e-4 # 1e-3
         config['vae_loss_percentile'] = 0
         if config['h_algo_name']=='VPG':
             config['ls_rate'] = 0.3
@@ -85,8 +85,8 @@ def default_config(env_name, algo_name='SAC', h_algo_name='VPG', w_algo_name='BC
         config['data_path']= 'snapshots/SAC_Human_1.0_F_F/673933361/'
         config['data_itr'] = [0,200,4]
         config['episode_batch_size'] = config['batch_size']
-        config['policy_network_hidden_sizes'] = (256, 256)
-        config['value_natwork_hidden_sizes'] = (256, 256)
+        config['policy_network_hidden_sizes'] = [256,256]
+        config['value_network_hidden_sizes'] = [256,256]
         config['n_epochs'] = 500
         config['h_n_epoch'] = 80
         config['w_n_epoch'] = 50
@@ -97,8 +97,8 @@ def default_config(env_name, algo_name='SAC', h_algo_name='VPG', w_algo_name='BC
         config['data_path']= 'snapshots/SAC_Ant-v_1.0_F_F/779696512'
         config['data_itr'] = [0,300,6]
         config['episode_batch_size'] = config['batch_size']
-        config['policy_network_hidden_sizes'] = (256, 256)
-        config['value_natwork_hidden_sizes'] = (256, 256)
+        config['policy_network_hidden_sizes'] = [256,256]
+        config['value_network_hidden_sizes'] = [256,256]
         config['n_epochs'] = 500
         config['h_n_epoch'] = 80
         config['w_n_epoch'] = 50
