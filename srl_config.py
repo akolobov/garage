@@ -56,11 +56,13 @@ def default_config(env_name, algo_name='SAC', h_algo_name='VPG', w_algo_name='BC
         config['episode_batch_size'] = config['batch_size']
         config['policy_network_hidden_sizes'] = (64, 64)
         config['value_natwork_hidden_sizes'] = (256, 256)
+        config['n_epochs'] = 20
         config['h_n_epoch'] = 30
         config['w_n_epoch'] = 30
         config['value_lr'] = 1e-3
         config['policy_lr'] = 1e-3
-        config['n_epochs'] = 20
+        config['ls_rate'] = 1.0
+        config['vae_loss_percentile'] = 0
 
     if env_name=='HalfCheetah-v2':
         config['data_path']= 'snapshots/SAC_HalfC_1.0_F_F/210566759/'
@@ -68,11 +70,12 @@ def default_config(env_name, algo_name='SAC', h_algo_name='VPG', w_algo_name='BC
         config['episode_batch_size'] = config['batch_size']
         config['policy_network_hidden_sizes'] = (64, 64)
         config['value_natwork_hidden_sizes'] = (256, 256)
+        config['n_epochs'] = 50
         config['h_n_epoch'] = 30
         config['w_n_epoch'] = 30
         config['value_lr'] = 5e-4
         config['policy_lr'] = 1e-3
-        config['n_epochs'] = 50
+        config['vae_loss_percentile'] = 0
         if config['h_algo_name']=='VPG':
             config['ls_rate'] = 0.3
         if config['h_algo_name']=='VAEVPG':
@@ -84,8 +87,11 @@ def default_config(env_name, algo_name='SAC', h_algo_name='VPG', w_algo_name='BC
         config['episode_batch_size'] = config['batch_size']
         config['policy_network_hidden_sizes'] = (256, 256)
         config['value_natwork_hidden_sizes'] = (256, 256)
+        config['n_epochs'] = 500
         config['h_n_epoch'] = 80
         config['w_n_epoch'] = 50
+        config['value_lr'] = 1e-4
+        config['policy_lr'] = 1e-3
 
     if env_name=='Ant-v2':
         config['data_path']= 'snapshots/SAC_Ant-v_1.0_F_F/779696512'
@@ -93,8 +99,9 @@ def default_config(env_name, algo_name='SAC', h_algo_name='VPG', w_algo_name='BC
         config['episode_batch_size'] = config['batch_size']
         config['policy_network_hidden_sizes'] = (256, 256)
         config['value_natwork_hidden_sizes'] = (256, 256)
+        config['n_epochs'] = 500
         config['h_n_epoch'] = 80
         config['w_n_epoch'] = 50
-        config['discount'] = 0.99  # somehow the horizon based one doesn't work
+        config['discount'] = 0.99  # somehow the horizon based one (0.999) doesn't work
 
     return config
