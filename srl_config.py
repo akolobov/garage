@@ -27,7 +27,7 @@ def default_config(env_name, algo_name='SAC', h_algo_name='VPG', w_algo_name='BC
         use_heuristic=h_algo_name is not None,
         h_algo_name=h_algo_name,
         h_n_epoch=30,
-        vae_loss_percentile=1,  # an interger from 0-99
+        vae_loss_percentile=99,  # an interger from 0-99
         # logging
         snapshot_frequency=0,
         log_root=None,
@@ -62,7 +62,7 @@ def default_config(env_name, algo_name='SAC', h_algo_name='VPG', w_algo_name='BC
         config['value_lr'] = 1e-3
         config['policy_lr'] = 1e-3
         config['ls_rate'] = 1.0
-        config['vae_loss_percentile'] = 0
+        # config['vae_loss_percentile'] = 0
 
     if env_name=='HalfCheetah-v2':
         config['data_path']= 'snapshots/SAC_HalfC_1.0_F_F/210566759/'
@@ -75,7 +75,7 @@ def default_config(env_name, algo_name='SAC', h_algo_name='VPG', w_algo_name='BC
         config['w_n_epoch'] = 30
         config['value_lr'] = 1e-3 # 5e-4
         config['policy_lr'] = 5e-4 # 1e-3
-        config['vae_loss_percentile'] = 0
+        # config['vae_loss_percentile'] = 0
         if config['h_algo_name']=='VPG':
             config['ls_rate'] = 0.3
         if config['h_algo_name']=='VAEVPG':
