@@ -81,6 +81,7 @@ def get_algo(*,
         sampler = ru.BatchSampler(episode_batch=episode_batch, randomize=randomize_episode_batch)
         get_sampler = lambda p: sampler
         env_spec = episode_batch.env_spec
+        num_evaluation_episodes=0
 
     if init_policy is None:
         get_mlp_policy = partial(ru.get_mlp_policy,

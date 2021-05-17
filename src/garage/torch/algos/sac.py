@@ -210,12 +210,13 @@ class SAC(RLAlgorithm):
                 self.episode_rewards.append(np.mean(path_returns))
                 for _ in range(self._gradient_steps):
                     policy_loss, qf1_loss, qf2_loss = self.train_once()
-            last_return = self._evaluate_policy(trainer.step_itr)
+            if self._num_evaluation_episodes>0:
+                last_return = self._evaluate_policy(trainer.step_itr)
             self._log_statistics(policy_loss, qf1_loss, qf2_loss)
             tabular.record('TotalEnvSteps', trainer.total_env_steps)
             trainer.step_itr += 1
 
-        return np.mean(last_return)
+        return np.mean(last_return) if last_return is not None else 0
 
     def train_once(self, itr=None, paths=None):
         """Complete 1 training iteration of SAC.
