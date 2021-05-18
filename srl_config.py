@@ -73,7 +73,7 @@ def default_config(env_name,
             config['data_path'] = 'snapshots/SAC_Inver_1.0_F_F/120032374/'
             config['data_itr'] = [0,9]
         elif mode=='test':
-            config['data_path'] = None #'snapshots/SAC_Inver_1.0_F_F/120032374/'
+            config['data_path'] = 'snapshots/SAC_Inver_1.0_F_F/640261488/'
             config['data_itr'] = [0,9]
         else:
             raise ValueError
@@ -95,11 +95,11 @@ def default_config(env_name,
         config['ls_rate'] = 1.0
         config['vae_loss_percentile'] = 98
         if mode=='train':
-            config['data_path'] = 'snapshots/SAC_Inver_1.0_F_F/120032374/'
-            config['data_itr'] = [0,9]
+            config['data_path'] = 'snapshots/SAC_HalfC_1.0_F_F/210566759/'
+            config['data_itr'] = [0,40,2]
         elif mode=='test':
-            config['data_path'] = None #'snapshots/SAC_Inver_1.0_F_F/120032374/'
-            config['data_itr'] = [0,9]
+            config['data_path'] = 'snapshots/SAC_HalfC_1.0_F_F/935667771//'
+            config['data_itr'] = [0,20,2]
         else:
             raise ValueError
 
