@@ -377,10 +377,11 @@ def compute_shortrl_stats(itr, batch, discount):
         max_hs.append(np.max(hs))
         min_hs.append(np.min(hs))
         std_hs.append(np.std(hs))
-        lambds = eps.env_infos['lambd']
-        mean_lambds.append(np.mean(lambds))
-        std_lambds.append(np.std(lambds))
-        mods.append(sum(eps.env_infos['h'] * (1-eps.env_infos['lambd'])))
+        if 'lambd' in eps.env_infos:
+            lambds = eps.env_infos['lambd']
+            mean_lambds.append(np.mean(lambds))
+            std_lambds.append(np.std(lambds))
+            mods.append(sum(eps.env_infos['h'] * (1-eps.env_infos['lambd'])))
 
     average_discounted_return = np.mean([rtn[0] for rtn in returns])
 
