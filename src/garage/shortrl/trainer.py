@@ -201,10 +201,10 @@ class SRLTrainer(Trainer):
     def update_lambd(self):
         if self._env is not None:  # to account for batch mode
             if isinstance(self._env._env, ShortMDP):
-                with tabular.prefix('ShortRL' + '/'):
-                    tabular.record('Lambda', self.lambd)
                 self._lambd.update()
                 self._env._env._lambd = self.lambd
+                if hasattr(self._algo, '_eval_env') and isinstance(self._algo._eval_env._env, ShortMDP):
+                    self._algo._eval_env._env._lambd = self.lambd
 
 
     def obtain_episodes(self,

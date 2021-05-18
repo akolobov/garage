@@ -22,7 +22,7 @@ class ShortMDP(gym.Wrapper):
         """gym.Env step function."""
         obs, reward, done, info = self.env.step(action)
         info['orig_reward'] = reward
-        info['lambda'] = self._lambd
+        info['lambd'] = self._lambd
         info['gamma'] = self._gamma
         info['scale'] = self._scale
 

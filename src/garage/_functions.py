@@ -354,25 +354,44 @@ def compute_shortrl_stats(itr, batch, discount):
         numpy.ndarray: Undiscounted returns.
 
     """
-    returns = []
-    undiscounted_returns = []
+
     if 'orig_reward' not in batch.env_infos:
         return
 
+    returns = []
+    undiscounted_returns = []
+    mods = []
+    mean_hs = []
+    max_hs = []
+    min_hs = []
+    std_hs = []
+    mean_lambds = []
+    std_lambds = []
     for eps in batch.split():
         rewards = eps.env_infos['orig_reward']
         returns.append(discount_cumsum(rewards, discount))
         undiscounted_returns.append(sum(rewards))
-    average_discounted_return = np.mean([rtn[0] for rtn in returns])
-
-    mean_hs = []
-    std_hs = []
-    for eps in batch.split():
+        # Some stats related to heuristics
         hs = eps.env_infos['h']
         mean_hs.append(np.mean(hs))
+        max_hs.append(np.max(hs))
+        min_hs.append(np.min(hs))
         std_hs.append(np.std(hs))
+        lambds = eps.env_infos['lambd']
+        mean_lambds.append(np.mean(lambds))
+        std_lambds.append(np.std(lambds))
+        mods.append(sum(eps.env_infos['h'] * (1-eps.env_infos['lambd'])))
+
+    average_discounted_return = np.mean([rtn[0] for rtn in returns])
+
     with tabular.prefix('ShortRL' + '/'):
         tabular.record('MeanHeuristic', np.mean(mean_hs))
+        tabular.record('MaxHeuristic', np.mean(max_hs))
+        tabular.record('MinHeuristic', np.mean(min_hs))
         tabular.record('StdHeuristic', np.mean(std_hs))
+        tabular.record('Lambda_env', np.mean(mean_lambds))
+        tabular.record('StdLambda', np.mean(std_lambds))
+        tabular.record('Mods', np.mean(mods))
+
 
     return undiscounted_returns, average_discounted_return
