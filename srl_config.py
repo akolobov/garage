@@ -31,7 +31,7 @@ def default_config(env_name,
         use_heuristic=h_algo_name is not None,
         h_algo_name=h_algo_name,
         h_n_epoch=30,
-        vae_loss_percentile=1,  # an interger from 0-99
+        vae_loss_percentile=99,  # an interger from 0-99
         # logging
         snapshot_frequency=0,
         log_root=None,
@@ -69,7 +69,7 @@ def default_config(env_name,
         config['w_n_epoch'] = 30
         # srl
         config['ls_rate'] = 1.0
-        config['vae_loss_percentile'] = 0
+        config['vae_loss_percentile'] = 98
         if mode=='train':
             config['data_path'] = 'snapshots/SAC_Inver_1.0_F_F/120032374/'
             config['data_itr'] = [0,9]
@@ -91,7 +91,7 @@ def default_config(env_name,
         config['w_n_epoch'] = 30
         config['value_lr'] = 1e-3 # 5e-4
         config['policy_lr'] = 5e-4 # 1e-3
-        config['vae_loss_percentile'] = 0
+        # config['vae_loss_percentile'] = 0
         if config['h_algo_name']=='VPG':
             config['ls_rate'] = 0.3
         if config['h_algo_name']=='VAEVPG':
