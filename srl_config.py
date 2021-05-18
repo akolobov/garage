@@ -1,6 +1,10 @@
 
 
-def default_config(env_name, algo_name='SAC', h_algo_name='VPG', w_algo_name='BC'):
+def default_config(env_name,
+                   algo_name='SAC',
+                   h_algo_name='VPG',
+                   w_algo_name='BC',
+                   mode='train'):
     # without env_name and seed
 
     # base config
@@ -51,18 +55,30 @@ def default_config(env_name, algo_name='SAC', h_algo_name='VPG', w_algo_name='BC
 
     # Provide data_path and data_itr below a
     if env_name=='InvertedDoublePendulum-v2':
-        config['data_path'] = 'snapshots/SAC_Inver_1.0_F_F/120032374/'
-        config['data_itr'] = [0,9]
-        config['episode_batch_size'] = config['batch_size']
+
+        # optimization
+        config['policy_lr'] = 0.00050
+        config['value_lr'] = 0.00200
+        config['discount'] = 0.99
         config['policy_network_hidden_sizes'] = [64,64]
         config['value_network_hidden_sizes'] = [256,256]
         config['n_epochs'] = 20
+        # batch training
+        config['episode_batch_size'] = config['batch_size']
         config['h_n_epoch'] = 30
         config['w_n_epoch'] = 30
-        config['value_lr'] = 1e-3
-        config['policy_lr'] = 1e-3
+        # srl
         config['ls_rate'] = 1.0
         config['vae_loss_percentile'] = 0
+        if mode=='train':
+            config['data_path'] = 'snapshots/SAC_Inver_1.0_F_F/120032374/'
+            config['data_itr'] = [0,9]
+        elif mode=='test':
+            config['data_path'] = None #'snapshots/SAC_Inver_1.0_F_F/120032374/'
+            config['data_itr'] = [0,9]
+        else:
+            raise ValueError
+
 
     if env_name=='HalfCheetah-v2':
         config['data_path']= 'snapshots/SAC_HalfC_1.0_F_F/210566759/'
