@@ -389,9 +389,9 @@ def compute_shortrl_stats(itr, batch, discount):
         tabular.record('MaxHeuristic', np.mean(max_hs))
         tabular.record('MinHeuristic', np.mean(min_hs))
         tabular.record('StdHeuristic', np.mean(std_hs))
-        tabular.record('Lambda_env', np.mean(mean_lambds))
+        tabular.record('Lambda', np.mean(mean_lambds))
         tabular.record('StdLambda', np.mean(std_lambds))
-        tabular.record('Mods', np.mean(mods))
+        tabular.record('AverageReturnDifference', np.mean(mods))
 
 
     return undiscounted_returns, average_discounted_return
