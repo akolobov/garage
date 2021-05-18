@@ -48,6 +48,7 @@ def get_algo(*,
              gae_lambda=0.98,  # lambda of gae estimator
              lr_clip_range=0.2, # the limit on the likelihood ratio between policies (PPO)
              vae_latent_dim=32,
+             eps_greed_decay_ratio=1, # for DQN/DDQN
              **kwargs,
              ):
     # return alg for env with discount
@@ -300,7 +301,7 @@ def get_algo(*,
                                                  total_timesteps=num_timesteps,
                                                  max_epsilon=1.0,
                                                  min_epsilon=0.01,
-                                                 decay_ratio=1.0)
+                                                 decay_ratio=eps_greed_decay_ratio)
         sampler = get_sampler(exploration_policy)
         algo = DQN(env_spec=env_spec,
                     policy=policy,

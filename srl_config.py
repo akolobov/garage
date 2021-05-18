@@ -77,6 +77,16 @@ def default_config(env_name,
             config['data_itr'] = [0,9]
         else:
             raise ValueError
+        # tuned hps
+        if config['h_algo_name']=='VPG':
+            config['lambd'] = 0.93
+            config['ls_rate'] = 1000000
+        elif config['h_algo_name']=='SAC':
+            config['lambd'] = 0.98
+            config['ls_rate'] = 1000000
+        elif config['h_algo_name'] is None:
+            config['lambd'] = 0.99
+            config['ls_rate'] = 0.30
 
 
     if env_name=='HalfCheetah-v2':
