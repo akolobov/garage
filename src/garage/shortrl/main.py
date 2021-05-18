@@ -387,7 +387,6 @@ def collect_batch_data(data_path,
                                 sampler_mode=sampler_mode)
             episode_batch.append(eps)
 
-        data_itr_str = str(data_itr_st)+'_'+str(data_itr_ed)+'_'+str(data_itr_sp)
     else:
         expert_policy = load_policy_from_snapshot(data_path, data_itr)
         set_seed(seed)
@@ -397,7 +396,8 @@ def collect_batch_data(data_path,
                             batch_size=episode_batch_size,
                             n_workers=n_workers,
                             sampler_mode=sampler_mode)
-        data_itr_str = str(data_itr)
+
+    data_itr_st, data_itr_ed, data_itr_sp, data_itr_str = parse_data_itr(data_itr)
     filepath = os.path.join(data_path,'itr_'+data_itr_str+'_batch.pkl')
     pickle.dump(episode_batch, open(filepath, "wb"))
 
