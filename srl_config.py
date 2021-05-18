@@ -6,6 +6,7 @@ def default_config(env_name,
                    w_algo_name='BC',
                    mode='train'):
     # without env_name and seed
+    assert mode in ['train', 'test']
 
     # base config
     config = dict(
@@ -16,8 +17,8 @@ def default_config(env_name,
         batch_size = 10000,
         seed=1,
         # offline batch data
-        data_path=None,  # directory of the snapshot
-        data_itr=None,
+        data_path='',  # directory of the snapshot
+        data_itr='',
         episode_batch_size = 50000,
         # pretrain policy
         warmstart_policy=w_algo_name is not None,
@@ -50,7 +51,9 @@ def default_config(env_name,
         sampler_mode='ray',
         kl_constraint=0.05,      # kl constraint between policy updates
         gae_lambda=0.98,         # lambda of gae estimator
-        lr_clip_range=0.2
+        lr_clip_range=0.2,
+        eps_greed_decay_ratio=1.0,
+        target_update_tau=5e-4,
     )
 
     # Provide data_path and data_itr below a
@@ -91,9 +94,11 @@ def default_config(env_name,
 
     if env_name=='HalfCheetah-v2':
         # optimization
-        config['policy_lr'] = 0.00050
-        config['value_lr'] = 0.00050
+        config['policy_lr'] = 0.01000
+        config['value_lr'] = 0.00100
         config['discount'] = 0.99
+        config['target_update_tau'] = 0.0500
+
         config['policy_network_hidden_sizes'] = [64,64]
         config['value_network_hidden_sizes'] = [256,256]
         config['n_epochs'] = 50
@@ -136,5 +141,103 @@ def default_config(env_name,
         config['h_n_epoch'] = 80
         config['w_n_epoch'] = 50
         config['discount'] = 0.99  # somehow the horizon based one (0.999) doesn't work
+
+
+    if env_name=='Reacher-v2':
+        # optimization
+        config['policy_lr'] = 0.0050
+        config['value_lr'] = 0.0050
+        config['discount'] = 0.9
+        config['policy_network_hidden_sizes'] = [64,64]
+        config['value_network_hidden_sizes'] = [256,256]
+        config['n_epochs'] = 50
+        # batch training
+        config['episode_batch_size'] = config['batch_size']
+        config['h_n_epoch'] = 30
+        config['w_n_epoch'] = 30
+        # srl
+        config['ls_rate'] = 1.0
+        config['vae_loss_percentile'] = 98
+        # if mode=='train':
+        #     config['data_path'] = 'snapshots/SAC_Inver_1.0_F_F/120032374/'
+        #     config['data_itr'] = [0,9]
+        # elif mode=='test':
+        #     config['data_path'] = 'snapshots/SAC_Inver_1.0_F_F/640261488/'
+        #     config['data_itr'] = [0,9]
+        # else:
+        #     raise ValueError
+        # # tuned hps
+        # if config['h_algo_name']=='VPG':
+        #     config['lambd'] = 0.93
+        #     config['ls_rate'] = 1000000
+        # elif config['h_algo_name']=='SAC':
+        #     config['lambd'] = 0.98
+        #     config['ls_rate'] = 1000000
+        # elif config['h_algo_name'] is None:
+        #     config['lambd'] = 0.99
+        #     config['ls_rate'] = 0.30
+
+
+    if env_name=='CartPole-v0':
+        assert algo_name in ['DDQN', 'DQN']
+        # optimization
+        config['eps_greed_decay_ratio'] = 0.5
+        config['value_lr'] = 0.00010
+        config['discount'] = 0.9
+        config['value_network_hidden_sizes'] = [256,256]
+        config['n_epochs'] = 20
+        # batch training
+        config['batch_size'] = 2000
+        config['episode_batch_size'] = config['batch_size']
+        config['h_n_epoch'] = 30
+        config['w_n_epoch'] = 30
+        # srl
+        config['ls_rate'] = 1.0
+        config['vae_loss_percentile'] = 98
+        # if mode=='train':
+        #     config['data_path'] = 'snapshots/SAC_Inver_1.0_F_F/120032374/'
+        #     config['data_itr'] = [0,9]
+        # elif mode=='test':
+        #     config['data_path'] = 'snapshots/SAC_Inver_1.0_F_F/640261488/'
+        #     config['data_itr'] = [0,9]
+        # else:
+        #     raise ValueError
+
+
+    # if algo_name in ['DDQN', 'DQN']:
+    #     # optimization
+    #     config['policy_lr'] = 0.00050
+    #     config['value_lr'] = 0.00200
+    #     config['discount'] = 0.99
+    #     config['policy_network_hidden_sizes'] = [64,64]
+    #     config['value_network_hidden_sizes'] = [256,256]
+    #     config['n_epochs'] = 20
+    #     # batch training
+    #     config['batch_size'] = 2000
+    #     config['episode_batch_size'] = config['batch_size']
+    #     config['h_n_epoch'] = 30
+    #     config['w_n_epoch'] = 30
+    #     # srl
+    #     config['ls_rate'] = 1.0
+    #     config['vae_loss_percentile'] = 98
+    #     if mode=='train':
+    #         config['data_path'] = 'snapshots/SAC_Inver_1.0_F_F/120032374/'
+    #         config['data_itr'] = [0,9]
+    #     elif mode=='test':
+    #         config['data_path'] = 'snapshots/SAC_Inver_1.0_F_F/640261488/'
+    #         config['data_itr'] = [0,9]
+    #     else:
+    #         raise ValueError
+        # tuned hps
+        # if config['h_algo_name']=='VPG':
+        #     config['lambd'] = 0.93
+        #     config['ls_rate'] = 1000000
+        # elif config['h_algo_name']=='SAC':
+        #     config['lambd'] = 0.98
+        #     config['ls_rate'] = 1000000
+        # elif config['h_algo_name'] is None:
+        #     config['lambd'] = 0.99
+        #     config['ls_rate'] = 0.30
+
 
     return config
