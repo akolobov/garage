@@ -154,7 +154,7 @@ class Trainer(garageTrainer):
 
         ### HACK Return other statistics ###
         progress = self._read_progress(self.return_attr)
-        progress = progress or 0
+        progress = progress if progress is not None else 0
         if self.return_mode == 'average':
             score = np.mean(progress)
         elif self.return_mode == 'full':
