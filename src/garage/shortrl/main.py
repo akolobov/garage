@@ -7,19 +7,17 @@ import pickle
 from garage import wrap_experiment
 from garage.envs import GymEnv
 from garage.experiment.deterministic import set_seed
-from garage.shortrl.trainer import SRLTrainer as Trainer
-from garage.shortrl.env_wrapper import ShortMDP
-from garage.shortrl.algorithms import get_algo
+from garage.shortrl.trainer import Trainer
+from garage.shortrl.algos import get_algo
 from garage.shortrl import lambda_schedulers
 from garage.shortrl.heuristics import load_policy_from_snapshot, load_heuristic_from_snapshot
-from garage.shortrl.pretrain import init_policy_from_baseline
 
 
 from garage._dtypes import EpisodeBatch
 import garage.shortrl.rl_utils as ru
 
 
-def load_env(env_name, heuristic=None, lambd=1.0, discount=1.0, init_with_defaults=True):
+def load_env(env_name, init_with_defaults=True):
     env_name_parts = env_name.split(':')
 
     if env_name_parts[0].lower() == 'procgen':
@@ -54,10 +52,6 @@ def load_env(env_name, heuristic=None, lambd=1.0, discount=1.0, init_with_defaul
         env = gym.make(env_name)
         is_image = False
 
-    if init_with_defaults:
-        env = ShortMDP(env)
-    else:
-        env = ShortMDP(env, heuristic, lambd=lambd, gamma=discount)
     env = GymEnv(env, is_image=is_image)
     return env
 
@@ -99,7 +93,6 @@ def offline_train(ctxt=None,
     trainer = Trainer(ctxt)
     trainer.setup(algo=algo,
                   env=None,
-                  discount=discount,
                   save_mode=save_mode,
                   return_mode=return_mode,
                   return_attr=return_attr)
@@ -135,27 +128,27 @@ def online_train(ctxt=None,
     set_seed(seed)
 
     # Wrap the gym env into our *gym* wrapper first and then into the standard garage wrapper.
-    heuristic = heuristic or (lambda x : 0.)
-    env = load_env(env_name, heuristic=heuristic, lambd=lambd, discount=discount, init_with_defaults=False)
+    env = load_env(env_name, init_with_defaults=False)
 
     # Initialize the algorithm
     init_policy = None if init_policy_fun is None else init_policy_fun()
+    lambd = getattr(lambda_schedulers, ls_cls)(init_lambd=lambd, n_epochs=ls_rate*n_epochs)
     algo = get_algo(algo_name=algo_name,
-                    discount=discount*lambd,  #  algorithm sees a shorter horizon,
+                    discount=discount,  #  algorithm sees a shorter horizon,
+                    lambd=lambd,
+                    heuristic=heuristic,
                     env=env,
                     batch_size=batch_size,
                     n_epochs=n_epochs,
                     init_policy=init_policy,
                     **kwargs)
 
-    # Define the lambda scheduler
-    ls_n_epochs = ls_rate * n_epochs
-    ls = getattr(lambda_schedulers, ls_cls)(init_lambd=lambd, n_epochs=ls_n_epochs)
-
     # Initialize the trainer
     trainer = Trainer(ctxt)
-    trainer.setup(algo=algo, env=env, lambd=ls, discount=discount,
-                  save_mode=save_mode, return_mode=return_mode,
+    trainer.setup(algo=algo,
+                  env=env,
+                  save_mode=save_mode,
+                  return_mode=return_mode,
                   return_attr=return_attr)
 
     return trainer.train(n_epochs=n_epochs,

@@ -1,16 +1,7 @@
 import copy
-from dowel import tabular
-
 from garage.torch.policies import TanhGaussianMLPPolicy, GaussianMLPPolicy, DeterministicMLPPolicy
 from garage.torch.modules.gaussian_mlp_module import GaussianMLPBaseModule, GaussianMLPModule
 from garage.torch.modules.mlp_module import MLPModule
-from garage.shortrl.trainer import SRLTrainer as Trainer
-from garage.shortrl.algorithms import get_algo
-
-
-from garage.shortrl.rl_utils import get_sampler, collect_episode_batch
-
-
 
 def set_as_baseline(policy, baseline_policy):
     """ Try to set the init_policy as the baseline_policy. """
@@ -43,42 +34,3 @@ def set_as_baseline(policy, baseline_policy):
         raise NotImplementedError
 
     return init_policy
-
-
-def init_policy_from_baseline(policy, baseline_policy,
-                              *,
-                              mode='copy',
-                              # bc parameters
-                              env=None,
-                              n_epochs=1,
-                              batch_size=None,
-                              opt_n_grad_steps=1000,
-                              opt_minibatch_size=128,
-                              policy_lr=1e-3,
-                              n_workers=4,
-                              ctxt=None):
-    if mode=='bc':
-        assert batch_size is not None
-        algo = get_algo(env=env,
-                        discount=1.0,
-                        algo_name='BC',
-                        init_policy=policy,
-                        expert_policy=baseline_policy,
-                        n_epochs=n_epochs,
-                        batch_size=batch_size,
-                        opt_n_grad_steps=opt_n_grad_steps,
-                        opt_minibatch_size=opt_minibatch_size,
-                        policy_lr=policy_lr,
-                        n_workers=n_workers)
-        trainer = Trainer(ctxt)
-        trainer.setup(algo, env, lambd=1.0, discount=1.0)
-        trainer.train(n_epochs=n_epochs,
-                      batch_size=batch_size,
-                      ignore_shutdown=True)
-        return algo.learner
-
-    elif mode=='copy':
-        return set_as_baseline(policy, baseline_policy)
-
-    else:
-        raise ValueError
