@@ -70,3 +70,69 @@ def log_performance(itr, batch, discount, prefix='Evaluation'):
             tabular.record('SuccessRate', np.mean(success))
 
     return undiscounted_returns
+
+
+
+import inspect
+from garage.shortrl.lambda_schedulers import LambdaScheduler
+def algo_wrapper(algo_cls):
+    """ Add helper functions for using heuristics.
+
+        It assumes the base algo cls uses `_discount` as the discount factor in
+        learning. The user needs to call `update_guidance_discount` within
+        train.
+
+    """
+
+    spec = inspect.getfullargspec(algo_cls.__init__)
+    assert 'heuristic' not in spec.kwonlyargs
+    assert 'heuristic' not in spec.args
+    assert 'lambd' not in spec.kwonlyargs
+    assert 'lambd' not in spec.args
+
+    class new_algo_cls(algo_cls):
+
+        def __init__(self, *args, lambd=1.0, heuristic=None, **kwargs):
+            super().__init__(*args, **kwargs)
+            assert not hasattr(self, 'lambd')
+            assert not hasattr(self, '_heuristic')
+            assert not hasattr(self, '_discount0')
+            assert hasattr(self, '_discount')
+            self._lambd = lambd if isinstance(lambd, LambdaScheduler) else LambdaScheduler(lambd)
+            self._heuristic = heuristic or (lambda x : np.zeros(len(x)))
+            self._discount0 = self._discount  # save the original discount
+            self._discount = self.guidance_discount # we will update self._discount
+
+        @property
+        def guidance_discount(self):
+            # a smaller discount
+            return self._lambd()*self._discount0
+
+        def update_guidance_discount(self):
+            # HACK Update lambd
+            with tabular.prefix('ShortRL' + '/'):
+                tabular.record('Lambda',self._lambd())
+                tabular.record('GuidanceDiscount',self._discount)
+                tabular.record('Discount0',self._discount0)
+            self._lambd.update()
+            self._discount = self.guidance_discount
+
+        def heuristic(self, next_obs, terminals):
+            assert len(terminals.shape)==1 or (len(terminals.shape)==2 and terminals.shape[1]==1)
+            # terminals is a boolean nd.array which can be (N,) or (N,1)
+            hs = self._heuristic(next_obs)
+            if len(hs.shape)<len(terminals.shape):
+                assert len(hs.shape)==1
+                hs = hs[...,np.newaxis]
+            elif len(hs.shape)>len(terminals.shape):
+                assert len(hs.shape)==2 and hs.shape[1]==1
+                hs = hs[:,0]
+            assert hs.shape == terminals.shape
+            return hs*(1-terminals)
+
+        def reshape_rewards(self, rewards, next_obs, terminals):
+            hs = self.heuristic(next_obs, terminals)
+            assert rewards.shape == hs.shape == terminals.shape
+            return rewards + (self._discount0-self._discount)*hs
+
+    return new_algo_cls

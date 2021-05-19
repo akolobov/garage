@@ -337,6 +337,9 @@ def train_agent(*,
                 **kwargs
                 ):
 
+
+    assert algo_name in ['SAC']  # only this is implemented now
+
     snapshot_gap, snapshot_mode = get_snapshot_info(snapshot_frequency)
     exp = wrap_experiment(online_train,
                           log_dir=log_dir,  # overwrite

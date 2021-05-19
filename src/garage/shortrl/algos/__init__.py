@@ -8,9 +8,12 @@ from garage.shortrl import rl_utils as ru
 
 from garage.shortrl.algos.sac import SAC
 from garage.shortrl.algos.bc import BC
-from garage.shortrl.algos.dqn import DQN
-from garage.shortrl.algos.vpg import VPG
+# from garage.shortrl.algos.dqn import DQN
+# from garage.shortrl.algos.vpg import VPG
+# from garage.shortrl.algos.ppo import PPO
+# from garage.shortrl.algos.trpo import TRPO
 
+from garage.torch.algos import VPG, PPO
 
 __all__ = ['get_algo', 'log_performance', 'SAC', 'BC', 'DQN', 'VPG']
 
@@ -107,7 +110,6 @@ def get_algo(*,
 
     # Create an algorithm instance
     if algo_name=='PPO':
-        from garage.torch.algos import PPO
         policy = get_mlp_policy(stochastic=True, clip_output=False)
         value_function = get_mlp_value('V',
                                        ensemble_mode=value_ensemble_mode,
@@ -124,11 +126,12 @@ def get_algo(*,
                    lr_clip_range=lr_clip_range,  # The limit on the likelihood ratio between policies.
                    policy_optimizer=get_wrapped_optimizer(policy, policy_lr),
                    vf_optimizer=get_wrapped_optimizer(value_function, value_lr),
-                   num_train_per_epoch=steps_per_epoch,
-                )
+                   num_train_per_epoch=steps_per_epoch)
+                #    lambd=lambd,
+                #    euristic=heuristic)
+
 
     # elif algo_name=='TRPO':
-    #     from garage.torch.algos import TRPO
     #     policy = get_mlp_policy(stochastic=True, clip_output=False)
     #     value_function = get_mlp_value('V',
     #                                    ensemble_mode=value_ensemble_mode,
@@ -148,7 +151,8 @@ def get_algo(*,
     #                 policy_optimizer=policy_optimizer,
     #                 vf_optimizer=get_wrapped_optimizer(value_function,lr=value_lr),
     #                 num_train_per_epoch=steps_per_epoch,
-    #                 )
+    #                 lambd=lambd,
+    #                 heuristic=heuristic)
 
     elif algo_name in ['VPG', 'VAEVPG']:
         policy = get_mlp_policy(stochastic=True, clip_output=False)
@@ -182,8 +186,8 @@ def get_algo(*,
                     num_train_per_epoch=steps_per_epoch,
                     pessimistic_vae_filter=use_pessimism,
                     vae=vae,
-                    vae_optimizer=vae_optimizer,
-                    )
+                    vae_optimizer=vae_optimizer)
+
 
     elif algo_name=='SAC':
         # from garage.torch.algos import SAC

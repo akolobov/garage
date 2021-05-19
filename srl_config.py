@@ -56,21 +56,27 @@ def default_config(env_name,
         target_update_tau=5e-4,
     )
 
-    # Provide data_path and data_itr below a
+    # Provide data_path and data_itr below
     if env_name=='InvertedDoublePendulum-v2':
+        # setup
+        config['batch_size'] = 1000
+        config['n_epochs'] = 20
+
         # optimization
         config['policy_lr'] = 0.00050
         config['value_lr'] = 0.00200
         config['discount'] = 0.99
         config['target_update_tau'] = 0.0400
 
+        # architecture
         config['policy_network_hidden_sizes'] = [64,64]
         config['value_network_hidden_sizes'] = [256,256]
-        config['n_epochs'] = 20
+
         # batch training
         config['episode_batch_size'] = config['batch_size']
         config['h_n_epoch'] = 30
         config['w_n_epoch'] = 30
+
         # srl
         config['ls_rate'] = 1.0
         config['vae_loss_percentile'] = 98
@@ -82,6 +88,7 @@ def default_config(env_name,
             config['data_itr'] = [0,9]
         else:
             raise ValueError
+
         # tuned hps
         if config['h_algo_name']=='VPG':
             config['lambd'] = 0.93
@@ -95,19 +102,25 @@ def default_config(env_name,
 
 
     if env_name=='HalfCheetah-v2':
+        # setup
+        config['batch_size'] = 4000
+        config['n_epochs'] = 50
+
         # optimization
-        config['policy_lr'] = 0.01000
+        config['policy_lr'] = 0.00200
         config['value_lr'] = 0.00100
         config['discount'] = 0.99
         config['target_update_tau'] = 0.0500
 
+        # architecture
         config['policy_network_hidden_sizes'] = [64,64]
         config['value_network_hidden_sizes'] = [256,256]
-        config['n_epochs'] = 50
+
         # batch training
         config['episode_batch_size'] = config['batch_size']
         config['h_n_epoch'] = 30
         config['w_n_epoch'] = 30
+
         # srl
         config['ls_rate'] = 1.0
         config['vae_loss_percentile'] = 98
@@ -116,7 +129,39 @@ def default_config(env_name,
             config['data_itr'] = [0,40,2]
         elif mode=='test':
             config['data_path'] = 'snapshots/SAC_HalfC_1.0_F_F/935667771//'
-            config['data_itr'] = [0,20,2]
+            config['data_itr'] = [0,40,2]
+        else:
+            raise ValueError
+
+    if env_name=='Hopper-v2':
+        # setup
+        config['batch_size'] = 4000
+        config['n_epochs'] = 100
+
+        # optimization
+        config['policy_lr'] = 0.00200
+        config['value_lr'] = 0.00100
+        config['discount'] = 0.99
+        config['target_update_tau'] = 0.0500
+
+        # architecture
+        config['policy_network_hidden_sizes'] = [64,64]
+        config['value_network_hidden_sizes'] = [256,256]
+
+        # batch training
+        config['episode_batch_size'] = config['batch_size']
+        config['h_n_epoch'] = 30
+        config['w_n_epoch'] = 30
+
+        # srl
+        config['ls_rate'] = 1.0
+        config['vae_loss_percentile'] = 98
+        if mode=='train':
+            config['data_path'] = 'snapshots/SAC_HalfC_1.0_F_F/210566759/'
+            config['data_itr'] = [0,40,2]
+        elif mode=='test':
+            config['data_path'] = 'snapshots/SAC_HalfC_1.0_F_F/935667771//'
+            config['data_itr'] = [0,40,2]
         else:
             raise ValueError
 
@@ -146,17 +191,25 @@ def default_config(env_name,
 
 
     if env_name=='Reacher-v2':
+        # setup
+        config['n_epochs'] = 20
+        config['batch_size'] = 1000
+
         # optimization
-        config['policy_lr'] = 0.0050
-        config['value_lr'] = 0.0050
+        config['policy_lr'] = 0.00200
+        config['value_lr'] = 0.0020
         config['discount'] = 0.9
+        config['target_update_tau'] = 0.0200
+
+        # architecture
         config['policy_network_hidden_sizes'] = [64,64]
         config['value_network_hidden_sizes'] = [256,256]
-        config['n_epochs'] = 50
+
         # batch training
         config['episode_batch_size'] = config['batch_size']
         config['h_n_epoch'] = 30
         config['w_n_epoch'] = 30
+
         # srl
         config['ls_rate'] = 1.0
         config['vae_loss_percentile'] = 98
