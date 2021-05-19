@@ -62,6 +62,8 @@ def default_config(env_name,
         config['policy_lr'] = 0.00050
         config['value_lr'] = 0.00200
         config['discount'] = 0.99
+        config['target_update_tau'] = 0.0400
+
         config['policy_network_hidden_sizes'] = [64,64]
         config['value_network_hidden_sizes'] = [256,256]
         config['n_epochs'] = 20
