@@ -54,6 +54,7 @@ def default_config(env_name,
         lr_clip_range=0.2,
         eps_greed_decay_ratio=1.0,
         target_update_tau=5e-4,
+        reward_avg_rate=1e-3,
     )
 
     # Provide data_path and data_itr below
@@ -89,16 +90,16 @@ def default_config(env_name,
         else:
             raise ValueError
 
-        # tuned hps
-        if config['h_algo_name']=='VPG':
-            config['lambd'] = 0.93
-            config['ls_rate'] = 1000000
-        elif config['h_algo_name']=='SAC':
-            config['lambd'] = 0.98
-            config['ls_rate'] = 1000000
-        elif config['h_algo_name'] is None:
-            config['lambd'] = 0.99
-            config['ls_rate'] = 0.30
+        # # tuned hps
+        # if config['h_algo_name']=='VPG':
+        #     config['lambd'] = 0.93
+        #     config['ls_rate'] = 1000000
+        # elif config['h_algo_name']=='SAC':
+        #     config['lambd'] = 0.98
+        #     config['ls_rate'] = 1000000
+        # elif config['h_algo_name'] is None:
+        #     config['lambd'] = 0.99
+        #     config['ls_rate'] = 0.30
 
 
     if env_name=='HalfCheetah-v2':

@@ -42,6 +42,7 @@ def get_algo(*,
              steps_per_epoch=1,  # number of internal epochs steps per epoch
              n_epochs=None,  # number of training epochs
              randomize_episode_batch=True,
+             reward_avg_rate=1e-3,
              # compute
              n_workers=4,  # number of workers for data collection
              use_gpu=False,  # try to use gpu, if implemented
@@ -213,7 +214,8 @@ def get_algo(*,
                    policy_lr=policy_lr,
                    qf_lr=value_lr,
                    lambd=lambd,
-                   heuristic=heuristic,)
+                   heuristic=heuristic,
+                   reward_avg_rate=reward_avg_rate)
 
     # elif algo_name=='CQL':
     #     from garage.torch.algos import CQL

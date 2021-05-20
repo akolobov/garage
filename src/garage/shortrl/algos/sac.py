@@ -3,7 +3,7 @@ from dowel import tabular
 import numpy as np
 
 from garage import obtain_evaluation_episodes, StepType
-from garage.shortrl.algos._functions import log_performance
+from garage.shortrl.algos._functions import log_performance, ExpAvg
 from garage.shortrl.lambda_schedulers import LambdaScheduler
 from garage.torch.algos import SAC as garageSAC
 from garage.torch import as_torch_dict
@@ -14,16 +14,19 @@ class SAC(garageSAC):
     def __init__(self, *args,
                  lambd=1.0,
                  heuristic=None,
+                 reward_avg_rate=1e-3,
                  **kwargs):
         super().__init__(*args, **kwargs)
 
         assert not hasattr(self, 'lambd')
         assert not hasattr(self, '_heuristic')
+        assert not hasattr(self, '_reward_avg')
         assert hasattr(self, '_discount')
         self._lambd = lambd if isinstance(lambd, LambdaScheduler) else LambdaScheduler(lambd)
         self._heuristic = heuristic or (lambda x : np.zeros(len(x)))
         self._discount0 = self._discount  # save the original discount
         self._discount = self.guidance_discount # we will update self._discount
+        self._reward_avg = ExpAvg(rate=reward_avg_rate)
 
     @property
     def guidance_discount(self):
@@ -36,6 +39,8 @@ class SAC(garageSAC):
             tabular.record('Lambda',self._lambd())
             tabular.record('GuidanceDiscount',self._discount)
             tabular.record('Discount0',self._discount0)
+            tabular.record('RewardBias',self._reward_avg.bias)
+            tabular.record('RewardScale',self._reward_avg.scale)
         self._lambd.update()
         self._discount = self.guidance_discount
 
@@ -129,11 +134,13 @@ class SAC(garageSAC):
             samples = self.replay_buffer.sample_transitions(
                 self._buffer_batch_size)
 
-            # HACK Reshape the rewards
-            samples['reward'] = self.reshape_rewards(
+            # HACK Reshape and normalize the rewards
+            shaped_rewards = self.reshape_rewards(
                                     rewards = samples['reward'],
                                     next_obs = samples['next_observation'],
                                     terminals = samples['terminal'])
+            samples['reward'] = self._reward_avg.normalize(shaped_rewards)
+            self._reward_avg.update(shaped_rewards)
 
             samples = as_torch_dict(samples)
             policy_loss, qf1_loss, qf2_loss = self.optimize_policy(samples)

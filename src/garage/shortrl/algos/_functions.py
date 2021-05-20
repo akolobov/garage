@@ -6,6 +6,30 @@ from garage.np import discount_cumsum
 from garage import StepType
 
 
+class ExpAvg:
+    def __init__(self, bias=0.0, scale=1.0, rate=1e-3):
+        self._bias = bias
+        self._scale = scale
+        self._rate = rate
+        self._itr = 0
+
+    def update(self, vals):
+        t = self._rate
+        self._bias = (1-t)*self._bias + t*np.mean(vals)
+        self._scale = (1-t)*self._scale + t*np.std(vals)
+        self._itr = (1-t)*self._itr + t*1
+
+    @property
+    def bias(self):
+        return self._bias/self._itr if self._itr>0 else self._bias
+
+    @property
+    def scale(self):
+        return self._scale/self._itr if self._itr>0 else self._scale
+
+    def normalize(self, vals):
+        return (vals-self.bias)/max(1e-6, self.scale)
+
 
 def log_performance(itr, batch, discount, prefix='Evaluation'):
     """Evaluate the performance of an algorithm on a batch of episodes.
