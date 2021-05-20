@@ -142,6 +142,7 @@ class SAC(garageSAC):
                                     next_obs = samples['next_observation'],
                                     terminals = samples['terminal'])
             # samples['reward'] = self._reward_avg.normalize(shaped_rewards)
+            samples['reward'] = shaped_rewards
             samples = as_torch_dict(samples)
             policy_loss, qf1_loss, qf2_loss = self.optimize_policy(samples)
             self._update_targets()
