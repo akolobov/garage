@@ -3,11 +3,10 @@ from dowel import tabular
 import numpy as np
 
 from garage import obtain_evaluation_episodes, StepType
-from garage.shortrl.algos._functions import log_performance, ExpAvg
+from garage.shortrl.algos._functions import log_performance, ExpAvg, MaxAvg
 from garage.shortrl.lambda_schedulers import LambdaScheduler
 from garage.torch.algos import SAC as garageSAC
 from garage.torch import as_torch_dict
-
 
 class SAC(garageSAC):
 
@@ -26,7 +25,7 @@ class SAC(garageSAC):
         self._heuristic = heuristic or (lambda x : np.zeros(len(x)))
         self._discount0 = self._discount  # save the original discount
         self._discount = self.guidance_discount # we will update self._discount
-        self._reward_avg = ExpAvg(rate=reward_avg_rate)
+        self._reward_avg = MaxAvg(rate=reward_avg_rate, scale_target=1)
 
     @property
     def guidance_discount(self):
@@ -98,6 +97,9 @@ class SAC(garageSAC):
                                  for step_type in path['step_types']
                              ]).reshape(-1, 1)))
                     path_returns.append(sum(path['rewards']))
+                    # update
+                    self._reward_avg.update(path['rewards'])  # for logging
+
                 assert len(path_returns) == len(trainer.step_episode)
                 self.episode_rewards.append(np.mean(path_returns))
                 for _ in range(self._gradient_steps):
@@ -139,9 +141,7 @@ class SAC(garageSAC):
                                     rewards = samples['reward'],
                                     next_obs = samples['next_observation'],
                                     terminals = samples['terminal'])
-            samples['reward'] = self._reward_avg.normalize(shaped_rewards)
-            self._reward_avg.update(shaped_rewards)
-
+            # samples['reward'] = self._reward_avg.normalize(shaped_rewards)
             samples = as_torch_dict(samples)
             policy_loss, qf1_loss, qf2_loss = self.optimize_policy(samples)
             self._update_targets()

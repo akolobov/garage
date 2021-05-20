@@ -6,29 +6,70 @@ from garage.np import discount_cumsum
 from garage import StepType
 
 
+
+
 class ExpAvg:
-    def __init__(self, bias=0.0, scale=1.0, rate=1e-3):
-        self._bias = bias
-        self._scale = scale
+    def __init__(self, rate=1e-3, scale_target=1):
+        self._x = 0
+        self._x2 = 0
         self._rate = rate
         self._itr = 0
+        self._scale_target = scale_target
 
     def update(self, vals):
         t = self._rate
-        self._bias = (1-t)*self._bias + t*np.mean(vals)
-        self._scale = (1-t)*self._scale + t*np.std(vals)
-        self._itr = (1-t)*self._itr + t*1
+        self._x = (1-t)*self._x + t*np.sum(vals)
+        self._x2 = (1-t)*self._x2 + t*np.sum(vals**2)
+        self._itr = (1-t)*self._itr + t*len(vals)
 
     @property
     def bias(self):
-        return self._bias/self._itr if self._itr>0 else self._bias
+        return self._x/self._itr if self._itr>0 else self._x
 
     @property
     def scale(self):
-        return self._scale/self._itr if self._itr>0 else self._scale
+        return np.sqrt(self._x2/self._itr - self.bias**2) if self._itr>0 else 1
 
     def normalize(self, vals):
-        return (vals-self.bias)/max(1e-6, self.scale)
+        return (vals-self.bias)/max(1e-6, self.scale)*self._scale_target
+
+
+
+class MaxAvg:
+    """ An online normalizer based on'non-shrinking' upper and lower bounds.
+        It uses a NormalizerStd to give an instantaneous estimate of upper and
+        lower bounds. It then compares that to the current bounds, and accept
+        the new bounds only if that expands the current ones. The shifting bias
+        is centered at the centered with respect to the upper and lower bounds.
+    """
+
+
+    def __init__(self, rate=1e-3, scale_target=1):
+        # new attributes
+        self._avg = ExpAvg(rate=rate)
+        self._upper_bound = None
+        self._lower_bound = None
+        self._scale_target = scale_target
+
+        self.bias = 0
+        self.scale = 1
+
+    def update(self, x):
+        self._avg.update(x)
+        upper_bound_candidate = self._avg.bias + self._avg.scale
+        lower_bound_candidate = self._avg.bias - self._avg.scale
+        if self._upper_bound is None:
+            self._upper_bound = upper_bound_candidate
+            self._lower_bound = lower_bound_candidate
+        else:
+            self._upper_bound = np.maximum(self._upper_bound, upper_bound_candidate)
+            self._lower_bound = np.minimum(self._lower_bound, lower_bound_candidate)
+
+        self.bias = 0.5*self._upper_bound + 0.5*self._lower_bound
+        self.scale = self._upper_bound-self.bias
+
+    def normalize(self, vals):
+        return (vals-self.bias)/max(1e-6, self.scale)*self._scale_target
 
 
 def log_performance(itr, batch, discount, prefix='Evaluation'):
