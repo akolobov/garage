@@ -151,17 +151,48 @@ def default_config(env_name,
             raise ValueError
 
 
-    # if env_name=='Humanoid-v2':
-    #     config['data_path']= 'snapshots/SAC_Human_1.0_F_F/673933361/'
-    #     config['data_itr'] = [0,200,4]
-    #     config['episode_batch_size'] = config['batch_size']
-    #     config['policy_network_hidden_sizes'] = [256,256]
-    #     config['value_network_hidden_sizes'] = [256,256]
-    #     config['n_epochs'] = 500
-    #     config['h_n_epoch'] = 80
-    #     config['w_n_epoch'] = 50
-    #     config['value_lr'] = 1e-4
-    #     config['policy_lr'] = 1e-3
+    if env_name=='Humanoid-v2':
+        config['data_path']= 'snapshots/SAC_Human_1.0_F_F/673933361/'
+        config['data_itr'] = [0,200,4]
+        config['episode_batch_size'] = config['batch_size']
+        config['policy_network_hidden_sizes'] = [256,256]
+        config['value_network_hidden_sizes'] = [256,256]
+        config['n_epochs'] = 500
+        config['h_n_epoch'] = 80
+        config['w_n_epoch'] = 50
+        config['value_lr'] = 1e-4
+        config['policy_lr'] = 1e-3
+
+    if env_name=='Swimmer-v2':
+        # setup
+        config['batch_size'] = 4000
+        config['n_epochs'] = 50
+
+        # optimization
+        config['policy_lr'] = 0.00025 # 0.00200
+        config['value_lr'] = 0.00050 # 0.00100
+        config['discount'] = 0.99
+        config['target_update_tau'] = 0.0400 # 0.0500
+
+        # architecture
+        config['policy_network_hidden_sizes'] = [64,64]
+        config['value_network_hidden_sizes'] = [256,256]
+
+        # batch training
+        config['episode_batch_size'] = config['batch_size']
+        config['h_n_epoch'] = 30
+        config['w_n_epoch'] = 30
+
+        # srl
+        if mode=='train':
+            # config['data_path'] = 'snapshots/SAC_HalfC_1.0_F_F/210566759/'
+            config['data_path'] = 'snapshots/SAC_HalfC_1.0_None_F/967665318'
+            config['data_itr'] = [0,30,2]
+        elif mode=='test':
+            config['data_path'] = 'snapshots/SAC_HalfC_1.0_F_F/935667771//'
+            config['data_itr'] = [0,30,2]
+        else:
+            raise ValueError
 
     # if env_name=='Ant-v2':
     #     config['data_path']= 'snapshots/SAC_Ant-v_1.0_F_F/779696512'
