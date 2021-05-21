@@ -1,5 +1,7 @@
 from garage.torch.algos import BC as garageBC
 from dowel import tabular
+import numpy as np
+from garage.torch import as_torch
 
 class BC(garageBC):
     def __init__(self, *args,
