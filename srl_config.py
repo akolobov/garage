@@ -115,7 +115,7 @@ def default_config(env_name,
             config['data_path'] = 'snapshots/SAC_HalfC_1.0_None_F/967665318'
             config['data_itr'] = [0,30,2]
         elif mode=='test':
-            config['data_path'] = 'snapshots/SAC_HalfC_1.0_F_F/935667771//'
+            config['data_path'] = 'snapshots/SAC_HalfC_1.0_None_F/940038543'
             config['data_itr'] = [0,30,2]
         else:
             raise ValueError
@@ -142,11 +142,11 @@ def default_config(env_name,
 
         # srl
         if mode=='train':
-            config['data_path'] = 'snapshots/SAC_HalfC_1.0_F_F/210566759/'
-            config['data_itr'] = [0,50,2]
+            config['data_path'] = 'snapshots/SAC_Hoppe_1.0_None_F/646449184'
+            config['data_itr'] = [0,99,4]
         elif mode=='test':
-            config['data_path'] = 'snapshots/SAC_HalfC_1.0_F_F/935667771//'
-            config['data_itr'] = [0,40,2]
+            config['data_path'] ='snapshots/SAC_Hoppe_1.0_None_F/177816424'
+            config['data_itr'] = [0,99,4]
         else:
             raise ValueError
 
