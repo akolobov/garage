@@ -126,11 +126,12 @@ def default_config(env_name,
         config['ls_rate'] = 1.0
         config['vae_loss_percentile'] = 98
         if mode=='train':
-            config['data_path'] = 'snapshots/SAC_HalfC_1.0_F_F/210566759/'
-            config['data_itr'] = [0,40,2]
+            # config['data_path'] = 'snapshots/SAC_HalfC_1.0_F_F/210566759/'
+            config['data_path'] = 'snapshots/SAC_HalfC_1.0_None_F/967665318'
+            config['data_itr'] = [0,30,2]
         elif mode=='test':
             config['data_path'] = 'snapshots/SAC_HalfC_1.0_F_F/935667771//'
-            config['data_itr'] = [0,40,2]
+            config['data_itr'] = [0,30,2]
         else:
             raise ValueError
 
@@ -159,7 +160,7 @@ def default_config(env_name,
         config['vae_loss_percentile'] = 98
         if mode=='train':
             config['data_path'] = 'snapshots/SAC_HalfC_1.0_F_F/210566759/'
-            config['data_itr'] = [0,40,2]
+            config['data_itr'] = [0,50,2]
         elif mode=='test':
             config['data_path'] = 'snapshots/SAC_HalfC_1.0_F_F/935667771//'
             config['data_itr'] = [0,40,2]
