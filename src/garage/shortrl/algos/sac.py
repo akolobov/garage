@@ -8,6 +8,7 @@ from garage.shortrl.lambda_schedulers import LambdaScheduler
 from garage.torch.algos import SAC as garageSAC
 from garage.torch import as_torch_dict
 
+import copy
 class SAC(garageSAC):
 
     def __init__(self, *args,
@@ -137,11 +138,10 @@ class SAC(garageSAC):
                 self._buffer_batch_size)
 
             # HACK Reshape and normalize the rewards
-            shaped_rewards = self.reshape_rewards(
-                                    rewards = samples['reward'],
-                                    next_obs = samples['next_observation'],
-                                    terminals = samples['terminal'])
-            # samples['reward'] = self._reward_avg.normalize(shaped_rewards)
+            samples = copy.deepcopy(samples)
+            shaped_rewards = self.reshape_rewards(rewards=samples['reward'],
+                                                  next_obs=samples['next_observation'],
+                                                  terminals=samples['terminal'])
             samples['reward'] = shaped_rewards
             samples = as_torch_dict(samples)
             policy_loss, qf1_loss, qf2_loss = self.optimize_policy(samples)
