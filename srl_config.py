@@ -94,7 +94,7 @@ def default_config(env_name,
         config['batch_size'] = 4000
         config['n_epochs'] = 50
 
-        # optimization
+        # optimization run1823.49
         config['policy_lr'] = 0.00025 # 0.00200
         config['value_lr'] = 0.00050 # 0.00100
         config['discount'] = 0.99
@@ -115,17 +115,33 @@ def default_config(env_name,
             config['data_path'] = 'snapshots/SAC_HalfC_1.0_None_F/967665318'
             config['data_itr'] = [0,30,2]
         elif mode=='test':
-            config['data_path'] = 'snapshots/SAC_HalfC_1.0_None_F/940038543'
+            config['data_path'] = 'snapshots/SAC_HalfC_1.0_None_F/967665318'
+            # config['data_path'] = 'snapshots/SAC_HalfC_1.0_None_F/940038543'
             config['data_itr'] = [0,30,2]
         else:
             raise ValueError
 
+        if config['h_algo_name'] is None and config['warmstart_policy']:
+            # 0.98 100000.00 10 3802.2 11 run1881.118
+            config['lambd'] = 0.98
+            config['ls_rate'] =  100000.00
+        elif config['h_algo_name'] == 'VPG':
+            # 0.98 0.500000 105 3526.4 8 run1880.62
+            config['lambd'] = 0.98
+            config['ls_rate'] =  0.5
+        elif config['h_algo_name'] == 'VAEVPG':
+            # 0.98 100000.000000 75 65 4100.3 17 run1882.128
+            config['lambd'] = 0.98
+            config['ls_rate'] =  100000.00
+            config['vae_loss_percentile'] = 75
+
+
     if env_name=='Hopper-v2':
         # setup
         config['batch_size'] = 4000
-        config['n_epochs'] = 100
+        config['n_epochs'] = 200
 
-        # optimization
+        # optimization run1833.205
         config['policy_lr'] = 0.00025
         config['value_lr'] = 0.00050
         config['discount'] = 0.999
@@ -164,15 +180,16 @@ def default_config(env_name,
         config['policy_lr'] = 1e-3
 
     if env_name=='Swimmer-v2':
+
         # setup
         config['batch_size'] = 4000
-        config['n_epochs'] = 50
+        config['n_epochs'] = 200
 
-        # optimization
-        config['policy_lr'] = 0.00025 # 0.00200
-        config['value_lr'] = 0.00050 # 0.00100
-        config['discount'] = 0.99
-        config['target_update_tau'] = 0.0400 # 0.0500
+        # optimization  run1888.258
+        config['policy_lr'] = 0.00050
+        config['value_lr'] = 0.00050
+        config['discount'] = 0.999
+        config['target_update_tau'] = 0.0100
 
         # architecture
         config['policy_network_hidden_sizes'] = [64,64]
