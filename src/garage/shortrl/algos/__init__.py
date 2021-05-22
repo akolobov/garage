@@ -1,3 +1,4 @@
+import copy
 import numpy as np
 import torch
 from functools import partial
@@ -283,6 +284,8 @@ def get_algo(*,
     elif algo_name=='BC':
         sampler=get_sampler(expert_policy)
         assert init_policy is not None
+        if episode_batch is not None and expert_policy is None:
+            expert_policy = copy.deepcopy(init_policy)  # this policy doesn't matter, since it runs in batch mode.
         assert expert_policy is not None
         algo = BC(env_spec,
                   init_policy,

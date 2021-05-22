@@ -278,7 +278,7 @@ def pretrain_policy(data_path,
             episode_batches = load_episode_batch(data_path, data_itr_str)
             episode_batches.sort(key=compute_episode_batch_returns)  # from low to high returns
             episode_batch = EpisodeBatch.concatenate(*episode_batches)
-            expert_policy = load_policy_from_snapshot(data_path, data_itr_ed) if algo_name=='BC' else None
+            # expert_policy = load_policy_from_snapshot(data_path, data_itr_ed) if algo_name=='BC' else None
 
     else:
         # Train from a single of snapshots
@@ -287,7 +287,7 @@ def pretrain_policy(data_path,
         if not os.path.exists(snapshot_path):
             print("No saved init_policy snapshot found. Train one from batch data.")
             episode_batch = load_episode_batch(data_path, data_itr)
-            expert_policy = load_policy_from_snapshot(data_path, data_itr) if algo_name=='BC' else None
+            # expert_policy = load_policy_from_snapshot(data_path, data_itr) if algo_name=='BC' else None
 
 
     if episode_batch is not None:
@@ -312,7 +312,7 @@ def pretrain_policy(data_path,
             n_epochs=n_epochs,
             episode_batch=episode_batch,
             batch_size=batch_size,
-            expert_policy=expert_policy,
+            # expert_policy=expert_policy,
             init_policy_fun=init_policy_fun,
             ignore_shutdown=True,
             randomize_episode_batch=not train_from_mixed_data, # to avoid conflicts
@@ -366,7 +366,8 @@ def collect_batch_data(data_path,
                        episode_batch_size,
                        seed=1,
                        n_workers=4,
-                       sampler_mode='ray'):
+                       sampler_mode='ray',
+                       log_path=None):
     # Collect episode_batch and save it
     train_from_mixed_data = isinstance(data_itr, list) or isinstance(data_itr, tuple)
     if train_from_mixed_data:
@@ -393,8 +394,18 @@ def collect_batch_data(data_path,
                             n_workers=n_workers,
                             sampler_mode=sampler_mode)
 
-    data_itr_st, data_itr_ed, data_itr_sp, data_itr_str = parse_data_itr(data_itr)
-    filepath = os.path.join(data_path,'itr_'+data_itr_str+'_batch.pkl')
+
+    if train_from_mixed_data:
+        data_itr_st, data_itr_ed, data_itr_sp, data_itr_str = parse_data_itr(data_itr)
+    else:
+        data_itr_str = str(data_itr)
+
+    if log_path is None:
+        filepath = os.path.join(data_path,'itr_'+data_itr_str+'_batch.pkl')
+    else: # Log the batch data to a user-specified path
+        if not os.path.isdir(log_path):
+            os.mkdir(log_path)
+        filepath = os.path.join(log_path,'itr_'+data_itr_str+'_batch.pkl')
     pickle.dump(episode_batch, open(filepath, "wb"))
 
 
@@ -422,6 +433,7 @@ def run_exp(*,
             h_algo_name='VPG',
             h_n_epoch=30,
             # logging
+            load_pretrained_data=True,
             snapshot_frequency=0,  # 0 means only taking the last snapshot
             log_root=None,
             log_prefix='agents',
@@ -431,6 +443,12 @@ def run_exp(*,
 
     if use_heuristic or warmstart_policy:
         assert data_itr is not None and data_path is not None
+        if not load_pretrained_data:
+            import datetime
+            batch_log_path = '_tmp_srl_data_'+datetime.datetime.now().strftime("%d-%m-%Y-%H-%M-%S")
+        else:
+            batch_log_path = data_path
+
 
     #env = GymEnv(ShortMDP(gym.make(env_name)))
     env = load_env(env_name, init_with_defaults=True)
@@ -446,7 +464,7 @@ def run_exp(*,
         try:
             if use_heuristic:
                 heuristic = train_heuristics(
-                                data_path,
+                                batch_log_path,
                                 data_itr,
                                 algo_name=h_algo_name,
                                 discount=discount,
@@ -458,7 +476,7 @@ def run_exp(*,
                                 )
             if warmstart_policy:
                 init_policy = pretrain_policy(
-                                data_path,
+                                batch_log_path,
                                 data_itr,
                                 target_algo_name=algo_name,
                                 algo_name=w_algo_name,
@@ -476,7 +494,8 @@ def run_exp(*,
                                data_itr,
                                env=env,
                                episode_batch_size=episode_batch_size,
-                               seed=seed)
+                               seed=seed,
+                               log_path=batch_log_path)
 
 
     # Define log_dir based on garage's logging convention
@@ -505,6 +524,11 @@ def run_exp(*,
                 seed=seed,
                 **kwargs,
                 )
+
+    if use_heuristic or warmstart_policy:
+        if not load_pretrained_data:
+            import subprocess
+            subprocess.run(['rm', '-r', batch_log_path])
 
     return score
 
