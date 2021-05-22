@@ -202,6 +202,7 @@ def train_heuristics(
                      snapshot_frequency=0,
                      save_mode='light',
                      vae_loss_percentile=0,
+                     ignore_shutdown=True,
                      **kwargs
                      ):
 
@@ -263,6 +264,7 @@ def pretrain_policy(data_path,
                     batch_size,
                     snapshot_frequency=0,
                     save_mode='light',
+                    ignore_shutdown=True,
                     **kwargs
                     ):
 

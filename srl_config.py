@@ -34,6 +34,7 @@ def default_config(env_name,
         h_n_epoch=30,
         vae_loss_percentile=99,  # an interger from 0-99
         # logging
+        load_pretrained_data=False,
         snapshot_frequency=0,
         log_root=None,
         log_prefix='hp_tuning',
@@ -168,19 +169,37 @@ def default_config(env_name,
 
 
     if env_name=='Humanoid-v2':
-        config['data_path']= 'snapshots/SAC_Human_1.0_F_F/673933361/'
-        config['data_itr'] = [0,200,4]
-        config['episode_batch_size'] = config['batch_size']
+        # setup
+        config['batch_size'] = 10000
+        config['n_epochs'] = 500
+
+        # optimization run1887.30
+        config['policy_lr'] = 0.00200
+        config['value_lr'] = 0.00025
+        config['discount'] = 0.99
+        config['target_update_tau'] = 0.0100
+
+        # architecture
         config['policy_network_hidden_sizes'] = [256,256]
         config['value_network_hidden_sizes'] = [256,256]
-        config['n_epochs'] = 500
+
+        # batch training
+        config['episode_batch_size'] = config['batch_size']
         config['h_n_epoch'] = 80
         config['w_n_epoch'] = 50
-        config['value_lr'] = 1e-4
-        config['policy_lr'] = 1e-3
+
+        # srl
+        if mode=='train':
+            config['data_path'] = 'snapshots/SAC_Human_1.0_F_F/673933361/'
+            config['data_itr'] = [0,200,4]
+        elif mode=='test':
+            config['data_path'] ='snapshots/SAC_Human_1.0_F_F/673933361/'
+            config['data_itr'] = [0,200,4]
+        else:
+            raise ValueError
+
 
     if env_name=='Swimmer-v2':
-
         # setup
         config['batch_size'] = 4000
         config['n_epochs'] = 200
@@ -202,12 +221,11 @@ def default_config(env_name,
 
         # srl
         if mode=='train':
-            # config['data_path'] = 'snapshots/SAC_HalfC_1.0_F_F/210566759/'
-            config['data_path'] = 'snapshots/SAC_HalfC_1.0_None_F/967665318'
-            config['data_itr'] = [0,30,2]
+            config['data_path'] = 'snapshots/SAC_Swimm_1.0_None_F/355552195'
+            config['data_itr'] = [0,49,2]
         elif mode=='test':
-            config['data_path'] = 'snapshots/SAC_HalfC_1.0_F_F/935667771//'
-            config['data_itr'] = [0,30,2]
+            config['data_path'] = 'snapshots/SAC_Swimm_1.0_None_F/355552195'
+            config['data_itr'] = [0,49,2]
         else:
             raise ValueError
 
