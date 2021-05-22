@@ -3,7 +3,7 @@
 
 
 # gym
-sudo apt-get install -y gcc libglu1-mesa-dev libgl1-mesa-dev libosmesa6-dev xvfb ffmpeg curl patchelf libglfw3 libglfw3-dev cmake zlib1g zlib1g-dev swig
+sudo apt-get install -y gcc libglu1-mesa-dev libgl1-mesa-dev libosmesa6-dev xvfb ffmpeg curl patchelf libglfw3 libglfw3-dev cmake zlib1g zlib1g-dev swig libglew-dev
 # mkdir repos
 # cd ~/repos
 #git clone https://github.com/openai/gym.git
@@ -26,6 +26,7 @@ cp ../mjkey.txt ~/.mujoco
 #cp mjkey.txt /opt
 #echo "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/.mujoco/mujoco200/bin" >> ~/.bashrc
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/.mujoco/mujoco200/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia-418
 #export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/mujoco200_linux/bin
 #export MUJOCO_PY_MJKEY_PATH=/opt/mjkey.txt
 #export MUJOCO_PY_MUJOCO_PATH=/opt/mujoco200_linux
