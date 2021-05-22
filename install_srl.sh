@@ -3,6 +3,7 @@
 
 
 # gym
+sudo apt-get update
 sudo apt-get install -y gcc libglu1-mesa-dev libgl1-mesa-dev libosmesa6-dev xvfb ffmpeg curl patchelf libglfw3 libglfw3-dev cmake zlib1g zlib1g-dev swig libglew-dev
 # mkdir repos
 # cd ~/repos
@@ -32,6 +33,8 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia-418
 #export MUJOCO_PY_MUJOCO_PATH=/opt/mujoco200_linux
 pip install -U 'mujoco-py<2.1,>=2.0'
 # python -c 'import mujoco_py'
+
+pip install -U oyaml
 
 # garage
 #cd ~
