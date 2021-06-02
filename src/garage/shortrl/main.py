@@ -76,6 +76,10 @@ def offline_train(ctxt=None,
     # Set the random seed
     set_seed(seed)
 
+    # Make sure a large enough batch is used
+    if 'opt_n_grad_steps' in kwargs and 'opt_minibatch_size' in kwargs:
+        batch_size = kwargs['opt_n_grad_steps']*kwargs['opt_minibatch_size']
+
     # Initialize the algorithm
     init_policy = None if init_policy_fun is None else init_policy_fun()
     algo = get_algo(algo_name=algo_name,
@@ -317,7 +321,7 @@ def pretrain_policy(data_path,
             # expert_policy=expert_policy,
             init_policy_fun=init_policy_fun,
             ignore_shutdown=True,
-            randomize_episode_batch=not train_from_mixed_data, # to avoid conflicts
+            randomize_episode_batch=True, #not train_from_mixed_data, # to avoid conflicts
             **kwargs)
 
     print("Load init_policy snapshot.")
@@ -409,6 +413,7 @@ def collect_batch_data(data_path,
             os.mkdir(log_path)
         filepath = os.path.join(log_path,'itr_'+data_itr_str+'_batch.pkl')
     pickle.dump(episode_batch, open(filepath, "wb"))
+    print('Saved batch data.')
 
 
 # Run this.

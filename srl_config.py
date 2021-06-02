@@ -93,7 +93,7 @@ def default_config(env_name,
     if env_name=='HalfCheetah-v2':
         # setup
         config['batch_size'] = 4000
-        config['n_epochs'] = 50
+        config['n_epochs'] = 200
 
         # optimization run1823.49
         config['policy_lr'] = 0.00025 # 0.00200
@@ -113,28 +113,33 @@ def default_config(env_name,
         # srl
         if mode=='train':
             # config['data_path'] = 'snapshots/SAC_HalfC_1.0_F_F/210566759/'
-            config['data_path'] = 'snapshots/SAC_HalfC_1.0_None_F/967665318'
-            config['data_itr'] = [0,30,2]
+            # config['data_path'] = 'snapshots/SAC_HalfC_1.0_None_F/967665318'  # default
+            config['data_path'] = 'snapshots/SAC_HalfC_1.0_None_F_200/786495378/'
+            config['data_itr'] = [0,199,4]
         elif mode=='test':
-            config['data_path'] = 'snapshots/SAC_HalfC_1.0_None_F/967665318'
-            # config['data_path'] = 'snapshots/SAC_HalfC_1.0_None_F/940038543'
-            config['data_itr'] = [0,30,2]
+            config['data_path'] = 'snapshots/SAC_HalfC_1.0_None_F_200/786495378/'
+            config['data_itr'] = [0,199,4]
         else:
             raise ValueError
 
+
         if config['h_algo_name'] is None and config['warmstart_policy']:
-            # 0.98 100000.00 10 3802.2 11 run1881.118
-            config['lambd'] = 0.98
-            config['ls_rate'] =  100000.00
+            # 0.99 100000.0 78 4433.1 10 run2347.91
+            config['lambd'] = 0.99
+            config['ls_rate'] =  100000
         elif config['h_algo_name'] == 'VPG':
-            # 0.98 0.500000 105 3526.4 8 run1880.62
-            config['lambd'] = 0.98
-            config['ls_rate'] =  0.5
+            # 0.99 100000.000000 48 4864.0 8 run2351.0
+            config['lambd'] = 0.99
+            config['ls_rate'] =  100000.0
         elif config['h_algo_name'] == 'VAEVPG':
-            # 0.98 100000.000000 75 65 4100.3 17 run1882.128
-            config['lambd'] = 0.98
+            # 0.99 100000.0 50 25 4893.5 7 run2346.63
+            config['lambd'] = 0.99
             config['ls_rate'] =  100000.00
-            config['vae_loss_percentile'] = 75
+            config['vae_loss_percentile'] = 50
+        elif config['h_algo_name'] == 'VPG':
+            # 0.99 0.000010 28 3503.7 9 run2354.113
+            config['lambd'] = 0.99
+            config['ls_rate'] =  0.000010
 
 
     if env_name=='Hopper-v2':
@@ -159,25 +164,45 @@ def default_config(env_name,
 
         # srl
         if mode=='train':
-            config['data_path'] = 'snapshots/SAC_Hoppe_1.0_None_F/646449184'
-            config['data_itr'] = [0,99,4]
+            # config['data_path'] = 'snapshots/SAC_Hoppe_1.0_None_F/646449184' default
+            config['data_path'] = 'snapshots/SAC_Hoppe_1.0_None_F_200/581079651/'
+            config['data_itr'] = [0,199,4]
         elif mode=='test':
-            config['data_path'] ='snapshots/SAC_Hoppe_1.0_None_F/177816424'
-            config['data_itr'] = [0,99,4]
+            config['data_path'] = 'snapshots/SAC_Hoppe_1.0_None_F_200/581079651/'
+            config['data_itr'] = [0,199,4]
+
+
         else:
             raise ValueError
 
+        if config['h_algo_name'] is None and config['warmstart_policy']:
+            # 0.98 0.000010 21 1301.0 13 run2344.60
+            config['lambd'] = 0.98
+            config['ls_rate'] =  0.000010
+        elif config['h_algo_name'] == 'VPG':
+            # 0.95 100000.000000 13 1827.3 12 run2352.14
+            config['lambd'] = 0.95
+            config['ls_rate'] =  100000.000000
+        elif config['h_algo_name'] == 'VAEVPG':
+            # 0.95 100000.000000 99 11 1827.8 14 run2345.170
+            config['lambd'] = 0.95
+            config['ls_rate'] =  100000.000000
+            config['vae_loss_percentile'] = 99
+        elif config['h_algo_name'] == 'SAC':
+            # 0.99 0.000010 8 1217.8 13 run2353.35
+            config['lambd'] = 0.99
+            config['ls_rate'] =  0.000010
 
     if env_name=='Humanoid-v2':
         # setup
         config['batch_size'] = 10000
         config['n_epochs'] = 500
 
-        # optimization run1887.30
+        # optimization run1887.113
         config['policy_lr'] = 0.00200
         config['value_lr'] = 0.00025
         config['discount'] = 0.99
-        config['target_update_tau'] = 0.0100
+        config['target_update_tau'] = 0.0200
 
         # architecture
         config['policy_network_hidden_sizes'] = [256,256]
@@ -190,13 +215,30 @@ def default_config(env_name,
 
         # srl
         if mode=='train':
-            config['data_path'] = 'snapshots/SAC_Human_1.0_F_F/673933361/'
+            config['data_path'] = 'snapshots/SAC_Human_1.0_F_F/293494415/'
             config['data_itr'] = [0,200,4]
+            # config['data_itr'] = 400
         elif mode=='test':
-            config['data_path'] ='snapshots/SAC_Human_1.0_F_F/673933361/'
+            config['data_path'] = 'snapshots/SAC_Human_1.0_F_F/293494415/'
             config['data_itr'] = [0,200,4]
         else:
             raise ValueError
+
+        if config['h_algo_name'] is None and config['warmstart_policy']:
+            # 0.90 0.000010 23 1965.5 3 run2164.87
+            # 0.95 0.000010 24 1907.1 8 run2377.94 (after batch bug fix)
+            config['lambd'] = 0.95
+            config['ls_rate'] =  0.000010
+        elif config['h_algo_name'] == 'VPG':
+            # 0.90 1.000000 54 2750.7 2 run2176.70
+            # 0.90 1.000000 7 2640.7 11 run2379.119
+            config['lambd'] = 0.9
+            config['ls_rate'] =  1.0
+        elif config['h_algo_name'] == 'VAEVPG':
+            # 0.95 100000.000000 99 2 2465.4 3 run2163.34
+            config['lambd'] = 0.95
+            config['ls_rate'] =  100000.000000
+            config['vae_loss_percentile'] = 99
 
 
     if env_name=='Swimmer-v2':
@@ -222,27 +264,78 @@ def default_config(env_name,
         # srl
         if mode=='train':
             config['data_path'] = 'snapshots/SAC_Swimm_1.0_None_F/355552195'
-            config['data_itr'] = [0,49,2]
+            config['data_itr'] = [0,199,4]
         elif mode=='test':
             config['data_path'] = 'snapshots/SAC_Swimm_1.0_None_F/355552195'
-            config['data_itr'] = [0,49,2]
+            config['data_itr'] = [0,199,4]
         else:
             raise ValueError
 
-    # if env_name=='Ant-v2':
-    #     config['data_path']= 'snapshots/SAC_Ant-v_1.0_F_F/779696512'
-    #     config['data_itr'] = [0,300,6]
-    #     config['episode_batch_size'] = config['batch_size']
-    #     config['policy_network_hidden_sizes'] = [256,256]
-    #     config['value_network_hidden_sizes'] = [256,256]
-    #     config['n_epochs'] = 500
-    #     config['h_n_epoch'] = 80
-    #     config['w_n_epoch'] = 50
-    #     config['discount'] = 0.99  # somehow the horizon based one (0.999) doesn't work
+        if config['h_algo_name'] is None and config['warmstart_policy']:
+            # 0.99 1.000000 24 164.8 8 run2343.41
+            config['lambd'] = 0.99
+            config['ls_rate'] =  1.000000
+        elif config['h_algo_name'] == 'VPG':
+            # 0.95 1.000000 6 205.1 10 run2350.74
+            config['lambd'] = 0.95
+            config['ls_rate'] =  1.000000
+        elif config['h_algo_name'] == 'VAEVPG':
+            # 0.95 100000.0 99 154 181.2 41 run2348.11
+            config['lambd'] = 0.99
+            config['ls_rate'] =  100000.0
+            config['vae_loss_percentile'] = 99
+        elif config['h_algo_name'] == 'SAC':
+            # 0.98 100000.0 67 201.7 9 run2355.44
+            config['lambd'] = 0.98
+            config['ls_rate'] =  100000.0
 
+    if env_name=='Ant-v2':
+        # setup
+        config['batch_size'] = 10000
+        config['n_epochs'] = 1000
 
+        # optimization run2101.213
+        config['policy_lr'] = 0.00200
+        config['value_lr'] = 0.00025
+        config['discount'] = 0.99
+        config['target_update_tau'] = 0.0050
 
+        # architecture
+        config['policy_network_hidden_sizes'] = [256,256]
+        config['value_network_hidden_sizes'] = [256,256]
 
+        # batch training
+        config['episode_batch_size'] = config['batch_size']
+        config['h_n_epoch'] = 80
+        config['w_n_epoch'] = 50
+
+        # srl
+        if mode=='train':
+            config['data_path'] = 'snapshots/SAC_Ant-v_1.0_F_F/232869848'
+            config['data_itr'] = [0,400,8]
+        elif mode=='test':
+            config['data_path'] = 'snapshots/SAC_Ant-v_1.0_F_F/232869848'
+            config['data_itr'] = [0,400,8]
+        else:
+            raise ValueError
+
+        if config['h_algo_name'] is None and config['warmstart_policy']:
+            # 0.93 0.500000 21 3907.8 3 run2187.7
+            config['lambd'] = 0.93
+            config['ls_rate'] =  0.500000
+        elif config['h_algo_name'] == 'VPG':
+            # 0.93 0.250000 11 3668.6 2 run2189.64
+            config['lambd'] = 0.93
+            config['ls_rate'] =  0.250000
+        elif config['h_algo_name'] == 'VAEVPG':
+            # 0.99 0.000010 25 1 3817.5 2 run2190.122
+            config['lambd'] = 0.99
+            config['ls_rate'] =  0.000010
+            config['vae_loss_percentile'] = 25
+        elif config['h_algo_name'] == 'SAC':
+            # 0.93 0.250000 11 3668.6 2 run2189.64
+            config['lambd'] = 0.93
+            config['ls_rate'] =  0.250000
 
     # if algo_name in ['DDQN', 'DQN']:
     #     # optimization
