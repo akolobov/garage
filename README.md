@@ -24,7 +24,7 @@ sudo apt install swig libopenmpi-dev
 git checkout tasksim
 pip install -e '.[all,dev]'
 ```
-
+See https://garage.readthedocs.io/en/latest/ for documentation on running example experiments and creating new ones.
 ------------------------------------------------------------------------------
 
 
@@ -53,11 +53,6 @@ including:
 See the [latest documentation](https://garage.readthedocs.org/en/latest/) for
 getting started instructions and detailed APIs.
 
-## Installation
-
-```
-pip install --user garage
-```
 
 ## Examples
 
