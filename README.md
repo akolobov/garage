@@ -4,6 +4,31 @@
 [![codecov](https://codecov.io/gh/rlworkgroup/garage/branch/master/graph/badge.svg)](https://codecov.io/gh/rlworkgroup/garage)
 [![PyPI version](https://badge.fury.io/py/garage.svg)](https://badge.fury.io/py/garage)
 
+
+# TLDR; isntalling garage for tasksim experiments
+
+(We are assuming installation on Ubuntu or WSL and pytorch as the DL framework)
+
+Run the following commands from the garage repo root directory:
+
+```
+# Create and activate a Conda "garage" environment:
+conda create -n garage pip python=3.7
+conda activate garage
+# EITHER: On CPU-only machines or on WSL2 (which currently doesn't work with GPUs):
+conda install pytorch=1.7.0 torchvision cpuonly -c pytorch
+# OR: on machines with a GPU:
+conda install pytorch=1.7.0 torchvision cudatoolkit=10.1 -c pytorch
+sudo apt install swig libopenmpi-dev
+# Make sure you are on the tasksim branch:
+git checkout tasksim
+pip install -e '.[all,dev]'
+```
+
+------------------------------------------------------------------------------
+
+
+
 # garage
 
 garage is a toolkit for developing and evaluating reinforcement learning
