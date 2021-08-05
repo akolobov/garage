@@ -28,6 +28,7 @@ def get_algo(*,
              # heuristic guidance
              lambd=1.0,
              heuristic=None,
+             reward_shaping_mode='hurl',
              # networks
              init_policy=None,  # learner policy
              policy_network_hidden_sizes=(256, 128),
@@ -63,6 +64,7 @@ def get_algo(*,
     assert isinstance(env, GymEnv) or env is None
     assert not (env is None and episode_batch is None)
     assert batch_size is not None
+    assert reward_shaping_mode in ['hurl', 'pbrs']
 
     # Parse algo_name
     value_ensemble_mode='P'
@@ -216,7 +218,8 @@ def get_algo(*,
                    qf_lr=value_lr,
                    lambd=lambd,
                    heuristic=heuristic,
-                   reward_avg_rate=reward_avg_rate)
+                   reward_avg_rate=reward_avg_rate,
+                   reward_shaping_mode=reward_shaping_mode)
 
     # elif algo_name=='CQL':
     #     from garage.torch.algos import CQL

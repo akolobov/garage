@@ -15,18 +15,23 @@ class SAC(garageSAC):
                  lambd=1.0,
                  heuristic=None,
                  reward_avg_rate=1e-3,
+                 reward_shaping_mode='hurl',  # 'hurl' or 'pbrs'
                  **kwargs):
         super().__init__(*args, **kwargs)
 
         assert not hasattr(self, 'lambd')
         assert not hasattr(self, '_heuristic')
         assert not hasattr(self, '_reward_avg')
+        assert not hasattr(self, '_reward_shaping_mode')
         assert hasattr(self, '_discount')
+
         self._lambd = lambd if isinstance(lambd, LambdaScheduler) else LambdaScheduler(lambd)
         self._heuristic = heuristic or (lambda x : np.zeros(len(x)))
         self._discount0 = self._discount  # save the original discount
         self._discount = self.guidance_discount # we will update self._discount
         self._reward_avg = MaxAvg(rate=reward_avg_rate, scale_target=1)
+        assert reward_shaping_mode in ['hurl', 'pbrs']
+        self._reward_shaping_mode = reward_shaping_mode
 
     @property
     def guidance_discount(self):
@@ -57,10 +62,18 @@ class SAC(garageSAC):
         assert hs.shape == terminals.shape
         return hs*(1-terminals)
 
-    def reshape_rewards(self, rewards, next_obs, terminals):
-        hs = self.heuristic(next_obs, terminals)
-        assert rewards.shape == hs.shape == terminals.shape
-        return rewards + (self._discount0-self._discount)*hs
+    def reshape_rewards(self, rewards, next_obs, terminals, obs=None):
+        if self._reward_shaping_mode=='hurl':
+            hs = self.heuristic(next_obs, terminals)
+            assert rewards.shape == hs.shape == terminals.shape
+            return rewards + (self._discount0-self._discount)*hs
+        elif self._reward_shaping_mode=='pbrs':
+            # This is a pbrs version of hurl. Setting lambda=1 recovers the classic pbrs.
+            hs_next = self.heuristic(next_obs, terminals)
+            hs_now = self._heuristic(obs)
+            hs_now = hs_now[...,np.newaxis]
+            assert rewards.shape == hs_next.shape == terminals.shape == hs_now.shape
+            return rewards + self._discount0 * hs_next - hs_now
 
     def train(self, trainer):
         """Obtain samplers and start actual training for each epoch.
@@ -141,7 +154,8 @@ class SAC(garageSAC):
             samples = copy.deepcopy(samples)
             shaped_rewards = self.reshape_rewards(rewards=samples['reward'],
                                                   next_obs=samples['next_observation'],
-                                                  terminals=samples['terminal'])
+                                                  terminals=samples['terminal'],
+                                                  obs=samples['observation'])
             samples['reward'] = shaped_rewards
             samples = as_torch_dict(samples)
             policy_loss, qf1_loss, qf2_loss = self.optimize_policy(samples)

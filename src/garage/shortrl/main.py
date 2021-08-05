@@ -575,6 +575,7 @@ if __name__ == '__main__':
     parser.add_argument('-n', '--n_workers', type=int, default=4)
     parser.add_argument('--use_gpu', type=str2bool, default=False)
     parser.add_argument('--sampler_mode', type=str, default='ray')
+    parser.add_argument('--reward_shaping_mode', type=str, default='hurl')
 
     args = parser.parse_args()
 
