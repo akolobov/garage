@@ -17,6 +17,7 @@ from garage._dtypes import EpisodeBatch
 import garage.shortrl.rl_utils as ru
 
 
+
 def load_env(env_name, init_with_defaults=True):
     env_name_parts = env_name.split(':')
 
@@ -51,6 +52,28 @@ def load_env(env_name, init_with_defaults=True):
     else:
         env = gym.make(env_name)
         is_image = False
+
+    # HACK Create a sparse reward, long horizon reacher env
+    from gym.envs.mujoco.reacher import ReacherEnv
+    class SparseReacherEnv(ReacherEnv):
+        def step(self, a):
+            vec = self.get_body_com("fingertip") - self.get_body_com("target")
+            reward_dist = -np.linalg.norm(vec)
+            reward_ctrl = -np.square(a).sum()
+            reward_sparse = float(-reward_dist<0.05)*10
+            reward = reward_sparse + reward_ctrl
+            self.do_simulation(a, self.frame_skip)
+            ob = self._get_obs()
+            done = False
+            # print(-reward_dist,reward_sparse)
+            return ob, reward, done, dict(reward_dist=reward_dist, reward_ctrl=reward_ctrl, heuristic=-reward_dist*10)
+
+    _env = gym.make('Reacher-v2')
+    env = SparseReacherEnv()
+    env.spec = _env.env.spec
+    env.spec.max_episode_steps = 500
+    from gym.wrappers.time_limit import TimeLimit
+    env = TimeLimit(env, max_episode_steps=env.spec.max_episode_steps)
 
     env = GymEnv(env, is_image=is_image)
     return env

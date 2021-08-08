@@ -101,15 +101,18 @@ class SAC(garageSAC):
                     trainer.step_itr, batch_size)
                 path_returns = []
                 for path in trainer.step_episode:
+                    # HACK hack the action to embed the heuristic information
+                    hacked_actions = np.concatenate([path['actions'], np.expand_dims(path['env_infos']['heuristic'],1)], axis=1)
                     self.replay_buffer.add_path(
                         dict(observation=path['observations'],
-                             action=path['actions'],
+                             action=hacked_actions, # HACK
                              reward=path['rewards'].reshape(-1, 1),
                              next_observation=path['next_observations'],
                              terminal=np.array([
                                  step_type == StepType.TERMINAL
                                  for step_type in path['step_types']
-                             ]).reshape(-1, 1)))
+                             ]).reshape(-1, 1)),
+                             )
                     path_returns.append(sum(path['rewards']))
                     # update
                     self._reward_avg.update(path['rewards'])  # for logging
@@ -152,10 +155,18 @@ class SAC(garageSAC):
 
             # HACK Reshape and normalize the rewards
             samples = copy.deepcopy(samples)
-            shaped_rewards = self.reshape_rewards(rewards=samples['reward'],
-                                                  next_obs=samples['next_observation'],
-                                                  terminals=samples['terminal'],
-                                                  obs=samples['observation'])
+
+            # HACK recover the heuristic from the hacked action
+            actions = samples['action'][:,:-1]
+            heuristics = samples['action'][:,-1]
+            heuristics[:-1] = heuristics[1:] # delay
+            heuristics = np.expand_dims(heuristics,1)
+            shaped_rewards = samples['reward'] + (self._discount0-self._discount)*heuristics
+            # shaped_rewards = self.reshape_rewards(rewards=samples['reward'],
+            #                                       next_obs=samples['next_observation'],
+            #                                       terminals=samples['terminal'],
+            #                                       obs=samples['observation'])
+            samples['action'] = actions
             samples['reward'] = shaped_rewards
             samples = as_torch_dict(samples)
             policy_loss, qf1_loss, qf2_loss = self.optimize_policy(samples)
