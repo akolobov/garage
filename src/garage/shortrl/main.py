@@ -60,13 +60,14 @@ def load_env(env_name, init_with_defaults=True):
             vec = self.get_body_com("fingertip") - self.get_body_com("target")
             reward_dist = -np.linalg.norm(vec)
             reward_ctrl = -np.square(a).sum()
-            reward_sparse = float(-reward_dist<0.05)*10
+            reward_sparse = -float(reward_dist<-0.05)
             reward = reward_sparse + reward_ctrl
+            # reward = (1+reward_dist)*10 + reward_ctrl
             self.do_simulation(a, self.frame_skip)
             ob = self._get_obs()
             done = False
             # print(-reward_dist,reward_sparse)
-            return ob, reward, done, dict(reward_dist=reward_dist, reward_ctrl=reward_ctrl, heuristic=-reward_dist*10)
+            return ob, reward, done, dict(reward_dist=reward_dist, reward_ctrl=reward_ctrl, heuristic=reward_dist*20)
 
     _env = gym.make('Reacher-v2')
     env = SparseReacherEnv()
