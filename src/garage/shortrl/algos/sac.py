@@ -159,9 +159,17 @@ class SAC(garageSAC):
             # HACK recover the heuristic from the hacked action
             actions = samples['action'][:,:-1]
             heuristics = samples['action'][:,-1]
-            heuristics[:-1] = heuristics[1:] # delay
-            heuristics = np.expand_dims(heuristics,1)
-            shaped_rewards = samples['reward'] + (self._discount0-self._discount)*heuristics
+
+            if self._reward_shaping_mode == 'hurl':
+                heuristics[:-1] = heuristics[1:] # delay
+                heuristics = np.expand_dims(heuristics,1)
+                shaped_rewards = samples['reward'] + (self._discount0-self._discount)*heuristics
+            elif self._reward_shaping_mode == 'pbrs':
+                heuristics = np.expand_dims(heuristics,1)
+                delay_heuristics = heuristics.copy()
+                delay_heuristics[:-1] = heuristics[1:] # delay
+                shaped_rewards = samples['reward'] + self._discount0*delay_heuristics - heuristics
+
             # shaped_rewards = self.reshape_rewards(rewards=samples['reward'],
             #                                       next_obs=samples['next_observation'],
             #                                       terminals=samples['terminal'],
