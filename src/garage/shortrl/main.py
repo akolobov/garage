@@ -54,23 +54,44 @@ def load_env(env_name, init_with_defaults=True):
         is_image = False
 
     # HACK Create a sparse reward, long horizon reacher env
+    assert env_name in ['Reacher-v2', 'Walker2d-v2']
     from gym.envs.mujoco.reacher import ReacherEnv
     class SparseReacherEnv(ReacherEnv):
         def step(self, a):
+            thre = 0.03
             vec = self.get_body_com("fingertip") - self.get_body_com("target")
             reward_dist = -np.linalg.norm(vec)
             reward_ctrl = -np.square(a).sum()
-            reward_sparse = -float(reward_dist<-0.05)
-            reward = reward_sparse + reward_ctrl
+            reward_sparse = -float(reward_dist<-thre)
+            reward = reward_sparse # + reward_ctrl
             # reward = (1+reward_dist)*10 + reward_ctrl
             self.do_simulation(a, self.frame_skip)
             ob = self._get_obs()
             done = False
             # print(-reward_dist,reward_sparse)
-            return ob, reward, done, dict(reward_dist=reward_dist, reward_ctrl=reward_ctrl, heuristic=reward_dist*20)
+            return ob, reward, done, dict(reward_dist=reward_dist, reward_ctrl=reward_ctrl, heuristic=reward_dist/thre)
 
-    _env = gym.make('Reacher-v2')
-    env = SparseReacherEnv()
+    from gym.envs.mujoco.walker2d import Walker2dEnv
+    class SparseWalker2dEnv(Walker2dEnv):
+        # TODO
+        def step(self, a):
+            posbefore = self.sim.data.qpos[0]
+            self.do_simulation(a, self.frame_skip)
+            posafter, height, ang = self.sim.data.qpos[0:3]
+            alive_bonus = 1.0
+            reward = (posafter - posbefore) / self.dt
+            reward += alive_bonus
+            reward -= 1e-3 * np.square(a).sum()
+            done = not (height > 0.8 and height < 2.0 and ang > -1.0 and ang < 1.0)
+            ob = self._get_obs()
+            return ob, reward, done, {}
+
+    _env = gym.make(env_name)
+    if env_name=='Reacher-v2':
+        env = SparseReacherEnv()
+    elif env_name == 'Walker2d-v2':
+        env = SparseWalker2dEnv()
+
     env.spec = _env.env.spec
     env.spec.max_episode_steps = 500
     from gym.wrappers.time_limit import TimeLimit
@@ -494,17 +515,21 @@ def run_exp(*,
         # Load heuristic and init_policy
         try:
             if use_heuristic:
-                heuristic = train_heuristics(
-                                batch_log_path,
-                                data_itr,
-                                algo_name=h_algo_name,
-                                discount=discount,
-                                n_epochs=h_n_epoch,
-                                batch_size=batch_size,
-                                seed=seed,
-                                use_raw_snapshot=use_raw_snapshot,
-                                **kwargs
-                                )
+                # HACK
+                if h_algo_name=='HACK':
+                    heuristic = 'HACK'
+                else:
+                    heuristic = train_heuristics(
+                                    batch_log_path,
+                                    data_itr,
+                                    algo_name=h_algo_name,
+                                    discount=discount,
+                                    n_epochs=h_n_epoch,
+                                    batch_size=batch_size,
+                                    seed=seed,
+                                    use_raw_snapshot=use_raw_snapshot,
+                                    **kwargs
+                                    )
             if warmstart_policy:
                 init_policy = pretrain_policy(
                                 batch_log_path,
