@@ -176,6 +176,7 @@ class SAC(garageSAC):
                                                   next_obs=samples['next_observation'],
                                                   terminals=samples['terminal'],
                                                   obs=samples['observation'])
+            samples['reward'] = shaped_rewards
             if self._heuristic == 'HACK':  # unhack the next_observation
                 samples['next_observation'] = samples['next_observation'][:,:-1]
 
