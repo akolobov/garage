@@ -66,7 +66,12 @@ class SAC(garageSAC):
         assert hs.shape == terminals.shape
         return hs*(1-terminals)
 
+<<<<<<< HEAD
     def reshape_rewards(self, rewards, next_obs, terminals, obs=None):
+=======
+    def reshape_rewards(self, rewards, next_obs, terminals):
+
+>>>>>>> 1035b4a3bd3205b33c30cc9c56e1082f991d4f35
         # Get heuristic
         if self._heuristic == 'HACK':
             # Load it from observation
@@ -77,7 +82,11 @@ class SAC(garageSAC):
         else:
             if self._reward_shaping_mode=='pbrs':
                 hs = self._heuristic(obs)
+<<<<<<< HEAD
                 hs = hs[...,np.newaxis]
+=======
+                hs = hs_now[...,np.newaxis]
+>>>>>>> 1035b4a3bd3205b33c30cc9c56e1082f991d4f35
             hs_next = self.heuristic(next_obs, terminals)
 
         if self._reward_shaping_mode=='hurl':
@@ -85,7 +94,11 @@ class SAC(garageSAC):
             return rewards + (self._discount0-self._discount)*hs_next
         elif self._reward_shaping_mode=='pbrs':
             # This is a pbrs version of hurl. Setting lambda=1 recovers the classic pbrs.
+<<<<<<< HEAD
             assert rewards.shape == hs_next.shape == terminals.shape == hs.shape
+=======
+            assert rewards.shape == hs_next.shape == terminals.shape == hs_now.shape
+>>>>>>> 1035b4a3bd3205b33c30cc9c56e1082f991d4f35
             return rewards + self._discount0*hs_next - hs
 
     def train(self, trainer):
