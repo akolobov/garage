@@ -70,10 +70,8 @@ class SAC(garageSAC):
         # Get heuristic
         if self._heuristic == 'HACK':
             # Load it from observation
-            hs = next_obs[:,-1]
-            hs = np.expand_dims(hs,1)
-            hs_next = hs.copy()
-            hs_next[:-1] = hs[1:] # delay
+            hs = obs[:,-1:]
+            hs_next = next_obs[:,-1:]
         else:
             if self._reward_shaping_mode=='pbrs':
                 hs = self._heuristic(obs)
@@ -116,13 +114,18 @@ class SAC(garageSAC):
                 for path in trainer.step_episode:
                     if self._heuristic == 'HACK':
                        # HACK hack the next_observations to embed the heuristic information
-                        hacked_next_observation = np.concatenate([path['next_observations'], np.expand_dims(path['env_infos']['heuristic'],1)], axis=1)
+                        hs = path['env_infos']['heuristic']
+                        hs_next = hs.copy()
+                        hs_next[:-1] = hs_next[1:]
+                        hacked_observation = np.concatenate([path['observations'], np.expand_dims(hs,1)], axis=1)
+                        hacked_next_observation = np.concatenate([path['next_observations'], np.expand_dims(hs_next,1)], axis=1)
                     else:
+                        hacked_observation = path['observations']
                         hacked_next_observation = path['next_observations']
 
                     self.replay_buffer.add_path(
-                        dict(observation=path['observations'],
-                             action=path['actions'], # HACK
+                        dict(observation=hacked_observation,
+                             action=path['actions'],
                              reward=path['rewards'].reshape(-1, 1),
                              next_observation=hacked_next_observation,
                              terminal=np.array([
@@ -178,8 +181,8 @@ class SAC(garageSAC):
                                                   obs=samples['observation'])
             samples['reward'] = shaped_rewards
             if self._heuristic == 'HACK':  # unhack the next_observation
+                samples['observation'] = samples['observation'][:,:-1]
                 samples['next_observation'] = samples['next_observation'][:,:-1]
-
             samples = as_torch_dict(samples)
             policy_loss, qf1_loss, qf2_loss = self.optimize_policy(samples)
             self._update_targets()
