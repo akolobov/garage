@@ -65,17 +65,12 @@ def default_config(env_name,
         config['batch_size'] = 10000
         config['n_epochs'] = 200
 
-        # # optimization (default of main.py)
-        # config['policy_lr'] = 1e-3
-        # config['value_lr'] = 1e-3
-        # config['discount'] = None
-        # config['target_update_tau'] = 5e-3 # 0.0500
 
-        # optimization run2990.148
-        config['policy_lr'] = 1e-3
-        config['value_lr'] = 1e-3
+        # optimization run3001.172 (for thres 0.01)
+        config['policy_lr'] = 0.00025
+        config['value_lr'] =  0.00025
         config['discount'] = 0.9
-        config['target_update_tau'] = 1e-2 # 0.0500
+        config['target_update_tau'] = 0.0200
 
         # architecture
         config['policy_network_hidden_sizes'] = [64,64]
@@ -85,9 +80,8 @@ def default_config(env_name,
         config['warmstart_policy'] = False
 
         if config['h_algo_name']=='HACK':
-            config['lambd'] = 0.95
+            config['lambd'] = 0.5
             config['ls_rate'] =  100000.0
-
 
     # Provide data_path and data_itr below
     if env_name=='InvertedDoublePendulum-v2':

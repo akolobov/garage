@@ -58,7 +58,7 @@ def load_env(env_name, init_with_defaults=True):
     from gym.envs.mujoco.reacher import ReacherEnv
     class SparseReacherEnv(ReacherEnv):
         def step(self, a):
-            thre = 0.03
+            thre = 0.01
             vec = self.get_body_com("fingertip") - self.get_body_com("target")
             reward_dist = -np.linalg.norm(vec)
             reward_ctrl = -np.square(a).sum()
@@ -69,7 +69,9 @@ def load_env(env_name, init_with_defaults=True):
             ob = self._get_obs()
             done = False
             # print(-reward_dist,reward_sparse)
-            return ob, reward, done, dict(reward_dist=reward_dist, reward_ctrl=reward_ctrl, heuristic=reward_dist/thre)
+            heuristic = reward_sparse + reward_dist/thre
+
+            return ob, reward, done, dict(reward_dist=reward_dist, reward_ctrl=reward_ctrl, heuristic=heuristic)
 
     from gym.envs.mujoco.walker2d import Walker2dEnv
     class SparseWalker2dEnv(Walker2dEnv):
