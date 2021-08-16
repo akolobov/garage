@@ -559,6 +559,12 @@ def run_exp(*,
     # Define log_dir based on garage's logging convention
     exp_name = algo_name+'_'+ env_name[:min(len(env_name),5)]+\
                 '_{}_{}_{}'.format(lambd, str(h_algo_name), str(warmstart_policy)[0])
+
+    if 'reward_shaping_mode' in kwargs:
+        exp_name += '_'+kwargs['reward_shaping_mode']
+    if 'reward_scale' in kwargs:
+        exp_name += '_{}'.format(kwargs['reward_scale'])
+
     prefix= os.path.join('shortrl',log_prefix,exp_name)
     name=str(seed)
     log_root = log_root or '.'
@@ -634,6 +640,8 @@ if __name__ == '__main__':
     parser.add_argument('--use_gpu', type=str2bool, default=False)
     parser.add_argument('--sampler_mode', type=str, default='ray')
     parser.add_argument('--reward_shaping_mode', type=str, default='hurl')
+    parser.add_argument('--reward_scale', type=float, default=1.0)
+
 
     args = parser.parse_args()
 

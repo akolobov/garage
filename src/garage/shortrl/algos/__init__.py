@@ -45,6 +45,7 @@ def get_algo(*,
              n_epochs=None,  # number of training epochs
              randomize_episode_batch=True,
              reward_avg_rate=1e-3,
+             reward_scale=1.0, # scaling factor on top the original reward
              # compute
              n_workers=4,  # number of workers for data collection
              use_gpu=False,  # try to use gpu, if implemented
@@ -211,7 +212,7 @@ def get_algo(*,
                    target_update_tau=target_update_tau,
                    discount=discount,
                    buffer_batch_size=opt_minibatch_size,
-                   reward_scale=1.,
+                   reward_scale=reward_scale,
                    steps_per_epoch=steps_per_epoch,
                    num_evaluation_episodes=num_evaluation_episodes,
                    policy_lr=policy_lr,
@@ -220,7 +221,6 @@ def get_algo(*,
                    heuristic=heuristic,
                    reward_avg_rate=reward_avg_rate,
                    reward_shaping_mode=reward_shaping_mode)
-
     # elif algo_name=='CQL':
     #     from garage.torch.algos import CQL
     #     policy = get_mlp_policy(stochastic=True, clip_output=True)
