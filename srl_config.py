@@ -56,6 +56,7 @@ def default_config(env_name,
         eps_greed_decay_ratio=1.0,
         target_update_tau=5e-4,
         reward_avg_rate=1e-3,
+        reward_scale=1.0
     )
 
     # Provide data_path and data_itr below
