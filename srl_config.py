@@ -57,6 +57,7 @@ def default_config(env_name,
         target_update_tau=5e-4,
         reward_avg_rate=1e-3,
         reward_shaping_mode='hurl',
+        reward_scale=1.0
     )
 
     # HACK Sparse Reacher Environment
