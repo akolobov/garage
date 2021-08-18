@@ -9,6 +9,21 @@ from garage.torch.algos import SAC as garageSAC
 from garage.torch import as_torch_dict
 
 import copy
+
+class MvAvg:  # for logging
+    def __init__(self):
+        self._x = 0
+        self._itr = 0
+
+    def update(self, vals, weight):
+        self._x += vals
+        self._itr += weight
+
+    @property
+    def mean(self):
+        return self._x /self._itr if self._itr>0 else 0.
+
+
 class SAC(garageSAC):
 
     def __init__(self, *args,
@@ -139,6 +154,8 @@ class SAC(garageSAC):
 
                 assert len(path_returns) == len(trainer.step_episode)
                 self.episode_rewards.append(np.mean(path_returns))
+                self._reward_ratio = MvAvg()  #XXX for logging
+
                 for _ in range(self._gradient_steps):
                     policy_loss, qf1_loss, qf2_loss = self.train_once()
 
@@ -146,6 +163,8 @@ class SAC(garageSAC):
                 last_return = self._evaluate_policy(trainer.step_itr)
             self._log_statistics(policy_loss, qf1_loss, qf2_loss)
             tabular.record('TotalEnvSteps', trainer.total_env_steps)
+            # XXX Extra logging
+            tabular.record('RewardRatio', self._reward_ratio.mean)
 
             #HACK Update lambda
             self.update_guidance_discount()
@@ -179,6 +198,9 @@ class SAC(garageSAC):
                                                   next_obs=samples['next_observation'],
                                                   terminals=samples['terminal'],
                                                   obs=samples['observation'])
+            # for logging
+            self._reward_ratio.update(vals=np.sum(np.abs(shaped_rewards)/(1e-7+np.abs(samples['reward']))),
+                                      weight=len(shaped_rewards))
             samples['reward'] = shaped_rewards
             if self._heuristic == 'HACK':  # unhack the next_observation
                 samples['observation'] = samples['observation'][:,:-1]
