@@ -59,7 +59,7 @@ def _get_time_limit(env, max_episode_length):
     return max_episode_length
 
 
-class GymEnv(Environment):
+class _GymEnv(Environment):
     """Returns an abstract Garage wrapper class for gym.Env.
 
     In order to provide pickling (serialization) and parameterization
@@ -110,7 +110,7 @@ class GymEnv(Environment):
                 from garage.envs.bullet import BulletEnv
                 return BulletEnv(*args, **kwargs)
 
-        return super(GymEnv, cls).__new__(cls)
+        return super(_GymEnv, cls).__new__(cls) #XXX
 
     def __init__(self, env, is_image=False, max_episode_length=None):
         """Initializes a GymEnv.
@@ -388,3 +388,23 @@ class GymEnv(Environment):
         if not hasattr(self._env, name):
             raise AttributeError('Attribute {} is not found'.format(name))
         return getattr(self._env, name)
+
+
+class GymEnv(_GymEnv):
+    """ Fix the randomness. """
+    def __init__(self, env, is_image=False, max_episode_length=None):
+        super().__init__(env, is_image=is_image, max_episode_length=max_episode_length)
+        self._seed = np.random.randint(4096)
+        self.seed(self._seed)
+
+    def seed(self, seed):
+        self._seed = seed
+        self._env.seed(seed)
+
+    def __getstate__(self):
+        self._seed = self._seed+1
+        return super().__getstate__()
+
+    def __setstate__(self, state):
+        super().__setstate__(state)
+        self.seed(self._seed)
