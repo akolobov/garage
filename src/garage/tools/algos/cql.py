@@ -351,7 +351,7 @@ class CQL(SAC):
 
             self._alpha_prime_optimizer.zero_grad()
             alpha_prime_loss = (-min_qf1_loss_ - min_qf2_loss_)*0.5
-            alpha_prime_loss.backward(retain_graph=True)
+            alpha_prime_loss.backward()
             self._alpha_prime_optimizer.step()
 
         qf1_loss = qf1_loss + min_qf1_loss
@@ -359,55 +359,6 @@ class CQL(SAC):
 
         return qf1_loss, qf2_loss
 
-
-    def train(self, trainer):
-        """Obtain samplers and start actual training for each epoch.
-
-        Args:
-            trainer (Trainer): Gives the algorithm the access to
-                :method:`~Trainer.step_epochs()`, which provides services
-                such as snapshotting and sampler control.
-
-        Returns:
-            float: The average return in last epoch cycle.
-
-        """
-        if not self._eval_env:
-            self._eval_env = trainer.get_env_copy()
-        last_return = None
-        for _ in trainer.step_epochs():
-            for _ in range(self._steps_per_epoch):
-                if not (self.replay_buffer.n_transitions_stored >=
-                        self._min_buffer_size):
-                    batch_size = int(self._min_buffer_size)
-                else:
-                    batch_size = None
-                trainer.step_episode = trainer.obtain_samples(
-                    trainer.step_itr, batch_size)
-                path_returns = []
-                for path in trainer.step_episode:
-                    self.replay_buffer.add_path(
-                        dict(observation=path['observations'],
-                             action=path['actions'],
-                             reward=path['rewards'].reshape(-1, 1),
-                             next_observation=path['next_observations'],
-                             terminal=np.array([
-                                 step_type == StepType.TERMINAL
-                                 for step_type in path['step_types']
-                             ]).reshape(-1, 1)))
-                    path_returns.append(sum(path['rewards']))
-                assert len(path_returns) == len(trainer.step_episode)
-                self.episode_rewards.append(np.mean(path_returns))
-                for _ in range(self._gradient_steps):
-                    policy_loss, qf1_loss, qf2_loss = self.train_once()
-                print(self._n_updates_performed, self._n_bc_steps)
-            if self._num_evaluation_episodes>0:
-                last_return = self._evaluate_policy(trainer.step_itr)
-            self._log_statistics(policy_loss, qf1_loss, qf2_loss)
-            tabular.record('TotalEnvSteps', trainer.total_env_steps)
-            trainer.step_itr += 1
-
-        return np.mean(last_return) if last_return is not None else 0
 
     def optimize_policy(self, samples_data):
         """Optimize the policy q_functions, and temperature coefficient.
@@ -436,22 +387,20 @@ class CQL(SAC):
         qf1_loss, qf2_loss = self._critic_objective(samples_data)
 
         self._qf1_optimizer.zero_grad()
-        qf1_loss.backward()  # retrain graph?
+        qf1_loss.backward()
         self._qf1_optimizer.step()
 
         self._qf2_optimizer.zero_grad()
         qf2_loss.backward()
         self._qf2_optimizer.step()
 
-
-
-
+        # Actior loss
         action_dists = self.policy(obs)[0]
         new_actions_pre_tanh, new_actions = action_dists.rsample_with_pre_tanh_value()
         log_pi_new_actions = action_dists.log_prob(
                 value=new_actions, pre_tanh_value=new_actions_pre_tanh)
 
-        if self._use_automatic_entropy_tuning:  # it comes first
+        if self._use_automatic_entropy_tuning:  # it comes first; seems to work also when put after policy update
             alpha_loss = self._temperature_objective(log_pi_new_actions,
                                                      samples_data)
             self._alpha_optimizer.zero_grad()
@@ -466,14 +415,12 @@ class CQL(SAC):
             gradient steps here, or not having it
             """
             policy_log_prob = action_dists.log_prob(samples_data['action'])
-
             with torch.no_grad():
                 alpha = self._get_log_alpha(samples_data).exp()
             policy_loss = (alpha * log_pi_new_actions - policy_log_prob).mean()
         else:
             policy_loss = self._actor_objective(samples_data, new_actions,
                                                 log_pi_new_actions)
-
 
         self._policy_optimizer.zero_grad()
         policy_loss.backward()
@@ -485,7 +432,6 @@ class CQL(SAC):
         #     self._alpha_optimizer.zero_grad()
         #     alpha_loss.backward()
         #     self._alpha_optimizer.step()
-
 
         self._n_updates_performed += 1
 

@@ -20,15 +20,16 @@ def load_d4rl_data_as_buffer(dataset, replay_buffer):
             terminal=dataset['terminals'].reshape(-1, 1))
     )
 
+
 def train_func(ctxt=None,
                *,
                algo,
                # Environment parameters
                env_name,
-               discount,  # original discount
                # Trainer parameters
                n_epochs=3000,  # number of training epochs
                batch_size=0,  # number of samples collected per update
+               replay_buffer_size=int(2e6),
                # Network parameters
                policy_hidden_sizes=(256, 256, 256),
                policy_hidden_nonlinearity=torch.nn.ReLU,
@@ -36,6 +37,7 @@ def train_func(ctxt=None,
                value_hidden_sizes=(256, 256, 256),
                value_hidden_nonlinearity=torch.nn.ReLU,
                # Algorithm parameters
+               discount=0.99,
                policy_lr=1e-4,  # optimization stepsize for policy update
                value_lr=3e-4,  # optimization stepsize for value regression
                target_update_tau=5e-3, # for target network
@@ -46,8 +48,6 @@ def train_func(ctxt=None,
                min_q_weight=1.0,
                n_bc_steps=10000,
                fixed_alpha=None,
-               replay_buffer_size=int(2e6),
-               # Evaluation
                use_deterministic_evaluation=True,
                num_evaluation_episodes=10, # number of episodes to evaluate (only affect off-policy algorithms)
                # Compute parameters
@@ -109,22 +109,24 @@ def train_func(ctxt=None,
                 qf1=qf1,
                 qf2=qf2,
                 sampler=sampler,
-                gradient_steps_per_itr=n_grad_steps,
                 replay_buffer=replay_buffer,
-                min_buffer_size=int(0),
-                target_update_tau=target_update_tau,
                 discount=discount,
-                buffer_batch_size=minibatch_size,
-                steps_per_epoch=steps_per_epoch,
-                num_evaluation_episodes=num_evaluation_episodes,
                 policy_lr=policy_lr,
                 qf_lr=value_lr,
-                use_deterministic_evaluation=use_deterministic_evaluation,
+                target_update_tau=target_update_tau,
+                buffer_batch_size=minibatch_size,
+                gradient_steps_per_itr=n_grad_steps,
+                steps_per_epoch=steps_per_epoch,
+                lagrange_thresh=lagrange_thresh,
                 min_q_weight=min_q_weight,
                 n_bc_steps=n_bc_steps,
-                fixed_alpha=fixed_alpha)
+                fixed_alpha=fixed_alpha,
+                use_deterministic_evaluation=use_deterministic_evaluation,
+                min_buffer_size=int(0),
+                num_evaluation_episodes=num_evaluation_episodes,
+    )
 
-    algo = get_algo(Algo, algo_config)
+    algo = Algo(**algo_config)
 
     setup_gpu(algo, gpu_id=gpu_id)
 
@@ -159,10 +161,15 @@ if __name__=='__main__':
     parser.add_argument('--fixed_alpha', type=float, default=None)
     parser.add_argument('--min_q_weight', type=float, default=1.0)
     parser.add_argument('--policy_lr', type=float, default=1e-4)
+    parser.add_argument('--value_lr', type=float, default=3e-4)
     parser.add_argument('--use_deterministic_evaluation', type=str2bool, default=True)
 
     train_kwargs = vars(parser.parse_args())
     train_agent(train_func,
-                log_dir=os.path.join('./data','Offline'+train_kwargs['algo'],str(train_kwargs['seed'])),
+                log_dir=os.path.join('./tmp_data','Offline'+train_kwargs['algo'],
+                                     '_policy_lr_'+str(train_kwargs['policy_lr'])+
+                                     '_value_lr_'+str(train_kwargs['value_lr'])+
+                                     '_lagrange_thresh_'+str(train_kwargs['lagrange_thresh'])+
+                                     '_seed_'+str(train_kwargs['seed'])),
                 train_kwargs=train_kwargs,
                 x_axis='Epoch')
