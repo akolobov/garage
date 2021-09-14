@@ -7,7 +7,8 @@ from garage.torch.algos import SAC
 from garage.tools.algos import CQL, CAC
 from garage.torch.policies import TanhGaussianMLPPolicy
 from garage.torch.q_functions import ContinuousMLPQFunction
-from garage.tools.rl_utils import train_agent, get_sampler, setup_gpu, get_algo
+from garage.tools.rl_utils import train_agent, get_sampler, setup_gpu, get_algo, get_log_dir_name
+
 from garage.tools.trainer import Trainer
 
 def load_d4rl_data_as_buffer(dataset, replay_buffer):
@@ -44,12 +45,17 @@ def train_func(ctxt=None,
                minibatch_size=256,  # optimization/replaybuffer minibatch size
                n_grad_steps=1000,  # number of gradient updates per epoch
                steps_per_epoch=1,  # number of internal epochs steps per epoch
-               lagrange_thresh=5.0,
-               min_q_weight=1.0,
                n_bc_steps=10000,
                fixed_alpha=None,
                use_deterministic_evaluation=True,
                num_evaluation_episodes=10, # number of episodes to evaluate (only affect off-policy algorithms)
+               # CQL parameters
+               lagrange_thresh=5.0,
+               min_q_weight=1.0,
+               # CAC parameters
+               policy_update_version=1,
+               kl_constraint=0.1,
+               policy_update_tau=5e-3, # for the policy.
                # Compute parameters
                seed=0,
                n_workers=1,  # number of workers for data collection
@@ -117,14 +123,26 @@ def train_func(ctxt=None,
                 buffer_batch_size=minibatch_size,
                 gradient_steps_per_itr=n_grad_steps,
                 steps_per_epoch=steps_per_epoch,
-                lagrange_thresh=lagrange_thresh,
-                min_q_weight=min_q_weight,
-                n_bc_steps=n_bc_steps,
-                fixed_alpha=fixed_alpha,
                 use_deterministic_evaluation=use_deterministic_evaluation,
                 min_buffer_size=int(0),
                 num_evaluation_episodes=num_evaluation_episodes,
+                n_bc_steps=n_bc_steps,
+                fixed_alpha=fixed_alpha
     )
+    extra_algo_config = dict()
+    if algo=='CQL':
+        extra_algo_config = dict(
+            lagrange_thresh=lagrange_thresh,
+            min_q_weight=min_q_weight,
+        )
+    elif algo=='CAC':
+        extra_algo_config = dict(
+            policy_update_version=policy_update_version,
+            kl_constraint=kl_constraint,
+            policy_update_tau=policy_update_tau,
+        )
+    algo_config.update(extra_algo_config)
+
 
     algo = Algo(**algo_config)
 
@@ -162,14 +180,21 @@ if __name__=='__main__':
     parser.add_argument('--min_q_weight', type=float, default=1.0)
     parser.add_argument('--policy_lr', type=float, default=1e-4)
     parser.add_argument('--value_lr', type=float, default=3e-4)
+    parser.add_argument('--target_update_tau', type=float, default=5e-3)
+    parser.add_argument('--policy_update_tau', type=float, default=5e-3)
     parser.add_argument('--use_deterministic_evaluation', type=str2bool, default=True)
+    parser.add_argument('--policy_update_version', type=int, default=1)
+    parser.add_argument('--kl_constraint', type=float, default=0.1)
 
     train_kwargs = vars(parser.parse_args())
+
+    if train_kwargs['algo']=='CQL':
+        log_dir = get_log_dir_name(train_kwargs, ['policy_lr', 'value_lr', 'lagrange_thresh', 'seed'])
+    if train_kwargs['algo']=='CAC':
+        log_dir = get_log_dir_name(train_kwargs, ['policy_lr', 'value_lr', 'policy_update_version',
+                                                  'kl_constraint', 'fixed_alpha', 'seed'])
+
     train_agent(train_func,
-                log_dir=os.path.join('./tmp_data','Offline'+train_kwargs['algo'],
-                                     '_policy_lr_'+str(train_kwargs['policy_lr'])+
-                                     '_value_lr_'+str(train_kwargs['value_lr'])+
-                                     '_lagrange_thresh_'+str(train_kwargs['lagrange_thresh'])+
-                                     '_seed_'+str(train_kwargs['seed'])),
+                log_dir=os.path.join('./data','Offline'+train_kwargs['algo'], log_dir),
                 train_kwargs=train_kwargs,
                 x_axis='Epoch')

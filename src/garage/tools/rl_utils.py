@@ -12,6 +12,14 @@ from garage.torch._functions import set_gpu_mode
 ### Run experiments
 from garage import wrap_experiment
 
+def get_log_dir_name(config, keys=None):
+    keys = keys or list(config.keys())
+    log_dir = ''
+    for k in keys:
+        log_dir = log_dir + '_' + k + '_' + str(config[k])
+    log_dir = log_dir[1:]
+    return log_dir
+
 def get_snapshot_info(snapshot_frequency):
     snapshot_gap = snapshot_frequency if snapshot_frequency>0 else 1
     snapshot_mode = 'gap_and_last' if snapshot_frequency>0 else 'last'
