@@ -162,10 +162,22 @@ def train_func(ctxt=None,
                          ignore_shutdown=ignore_shutdown)
 
 
+def run(log_root='.', **train_kwargs):
+    torch.set_num_threads(1)
+    if train_kwargs['algo']=='CQL':
+        log_dir = get_log_dir_name(train_kwargs, ['policy_lr', 'value_lr', 'lagrange_thresh', 'seed'])
+    if train_kwargs['algo']=='CAC':
+        log_dir = get_log_dir_name(train_kwargs, ['policy_lr', 'value_lr', 'policy_update_version',
+                                                  'kl_constraint', 'fixed_alpha', 'policy_update_tau', 'seed'])
+    train_agent(train_func,
+                log_dir=os.path.join(log_root,'testdata','Offline'+train_kwargs['algo']+'_'+train_kwargs['env_name'], log_dir),
+                train_kwargs=train_kwargs,
+                x_axis='Epoch')
+
+
 if __name__=='__main__':
     import argparse
     from garage.tools.utils import str2bool
-    torch.set_num_threads(1)
     parser = argparse.ArgumentParser()
     parser.add_argument('-a', '--algo', type=str, default='CQL')
     parser.add_argument('-e', '---env_name',  type=str, default='hopper-medium-v0')
@@ -187,14 +199,4 @@ if __name__=='__main__':
     parser.add_argument('--kl_constraint', type=float, default=0.1)
 
     train_kwargs = vars(parser.parse_args())
-
-    if train_kwargs['algo']=='CQL':
-        log_dir = get_log_dir_name(train_kwargs, ['policy_lr', 'value_lr', 'lagrange_thresh', 'seed'])
-    if train_kwargs['algo']=='CAC':
-        log_dir = get_log_dir_name(train_kwargs, ['policy_lr', 'value_lr', 'policy_update_version',
-                                                  'kl_constraint', 'fixed_alpha', 'policy_update_tau', 'seed'])
-
-    train_agent(train_func,
-                log_dir=os.path.join('./data','Offline'+train_kwargs['algo']+'_'+train_kwargs['env_name'], log_dir),
-                train_kwargs=train_kwargs,
-                x_axis='Epoch')
+    run(**train_kwargs)
