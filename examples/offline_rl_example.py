@@ -61,7 +61,6 @@ def train_func(ctxt=None,
                n_workers=1,  # number of workers for data collection
                gpu_id=-1,  # try to use gpu, if implemented
                force_cpu_data_collection=True,  # use cpu for data collection.
-               sampler_mode='ray',
                # Logging parameters
                save_mode='light',
                ignore_shutdown=False,  # do not shutdown workers after training
@@ -166,13 +165,14 @@ def train_func(ctxt=None,
 if __name__=='__main__':
     import argparse
     from garage.tools.utils import str2bool
-    torch.set_num_threads(8)
+    torch.set_num_threads(1)
     parser = argparse.ArgumentParser()
     parser.add_argument('-a', '--algo', type=str, default='CQL')
     parser.add_argument('-e', '---env_name',  type=str, default='hopper-medium-v0')
     parser.add_argument('--discount', type=float, default=0.99)
     parser.add_argument('--gpu_id', type=int, default=-1)  # use cpu by default
     parser.add_argument('--n_workers', type=int, default=4)
+    parser.add_argument('--force_cpu_data_collection', type=str2bool, default=True)
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--lagrange_thresh', type=float, default=5.0)
     parser.add_argument('--n_bc_steps', type=int, default=10000)  # 40000
@@ -192,9 +192,9 @@ if __name__=='__main__':
         log_dir = get_log_dir_name(train_kwargs, ['policy_lr', 'value_lr', 'lagrange_thresh', 'seed'])
     if train_kwargs['algo']=='CAC':
         log_dir = get_log_dir_name(train_kwargs, ['policy_lr', 'value_lr', 'policy_update_version',
-                                                  'kl_constraint', 'fixed_alpha', 'seed'])
+                                                  'kl_constraint', 'fixed_alpha', 'policy_update_tau', 'seed'])
 
     train_agent(train_func,
-                log_dir=os.path.join('./data','Offline'+train_kwargs['algo'], log_dir),
+                log_dir=os.path.join('./data','Offline'+train_kwargs['algo']+'_'+train_kwargs['env_name'], log_dir),
                 train_kwargs=train_kwargs,
                 x_axis='Epoch')

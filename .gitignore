@@ -161,3 +161,4 @@ snapshots*/
 events.out.*
 experiment.json
 *.pdf
+*data*
