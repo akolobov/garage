@@ -294,12 +294,12 @@ class CAC(RLAlgorithm):
         with torch.no_grad():
             alpha = self._log_alpha.exp()
 
+        min_q_new_actions = torch.min(self._qf1(obs, new_actions),
+                                      self._qf2(obs, new_actions))
         if self._n_updates_performed < self._n_bc_steps: # BC warmstart
             policy_log_prob = action_dists.log_prob(samples_data['action'])
             policy_loss = (alpha * log_pi_new_actions - policy_log_prob).mean()
         else:
-            min_q_new_actions = torch.min(self._qf1(obs, new_actions),
-                                          self._qf2(obs, new_actions))
             policy_loss = ((alpha * log_pi_new_actions) - min_q_new_actions.flatten()).mean()
 
         if self._policy_update_version==1: #  XXX Mirror Descent
