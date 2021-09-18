@@ -1,5 +1,6 @@
 
 import gym, d4rl, torch, os
+import numpy as np
 from garage.envs import GymEnv
 from garage.experiment.deterministic import set_seed
 from garage.replay_buffer import PathBuffer
@@ -169,11 +170,13 @@ def run(log_root='.', **train_kwargs):
     if train_kwargs['algo']=='CAC':
         log_dir = get_log_dir_name(train_kwargs, ['policy_lr', 'value_lr', 'policy_update_version',
                                                   'kl_constraint', 'fixed_alpha', 'policy_update_tau', 'seed'])
-    return train_agent(train_func,
-                log_dir=os.path.join(log_root,'testdata','Offline'+train_kwargs['algo']+'_'+train_kwargs['env_name'], log_dir),
-                train_kwargs=train_kwargs,
-                x_axis='Epoch')
-
+    train_kwargs['return_mode'] = 'full'
+    full_score =  train_agent(train_func,
+                    log_dir=os.path.join(log_root,'testdata','Offline'+train_kwargs['algo']+'_'+train_kwargs['env_name'], log_dir),
+                    train_kwargs=train_kwargs,
+                    x_axis='Epoch')
+    return {'score': np.median(full_score[-min(len(full_score),50):]),  # last 50 epochs
+            'mean': np.mean(full_score)}
 
 if __name__=='__main__':
     import argparse
