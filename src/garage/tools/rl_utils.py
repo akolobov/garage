@@ -16,7 +16,8 @@ def get_log_dir_name(config, keys=None):
     keys = keys or list(config.keys())
     log_dir = ''
     for k in keys:
-        log_dir = log_dir + '_' + k + '_' + str(config[k])
+        if k in config:
+            log_dir = log_dir + '_' + k + '_' + str(config[k])
     log_dir = log_dir[1:]
     return log_dir
 
