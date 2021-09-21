@@ -82,7 +82,7 @@ def train_func(ctxt=None,
         try:
             _env = gym.make(env_name)  # d4rl env
             dataset = d4rl.qlearning_dataset(_env)
-        except HTTPError:
+        except (HTTPError, OSError):
             pass
 
     # Initialize replay buffer and gymenv
