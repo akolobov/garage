@@ -48,6 +48,7 @@ def train_func(ctxt=None,
                steps_per_epoch=1,  # number of internal epochs steps per epoch
                n_bc_steps=10000,
                fixed_alpha=None,
+               use_two_qfs=True,
                use_deterministic_evaluation=True,
                num_evaluation_episodes=10, # number of episodes to evaluate (only affect off-policy algorithms)
                # CQL parameters
@@ -137,9 +138,11 @@ def train_func(ctxt=None,
         )
     elif algo=='CAC':
         extra_algo_config = dict(
+            min_q_weight=min_q_weight,
             policy_update_version=policy_update_version,
             kl_constraint=kl_constraint,
             policy_update_tau=policy_update_tau,
+            use_two_qfs=use_two_qfs,
         )
     algo_config.update(extra_algo_config)
 
@@ -169,7 +172,7 @@ def run(log_root='.', **train_kwargs):
         log_dir = get_log_dir_name(train_kwargs, ['policy_lr', 'value_lr', 'lagrange_thresh', 'seed'])
     if train_kwargs['algo']=='CAC':
         log_dir = get_log_dir_name(train_kwargs, ['policy_update_version', 'policy_lr', 'value_lr', 'target_update_tau', 'policy_update_tau',
-                                                  'kl_constraint', 'fixed_alpha', 'seed'])
+                                                  'use_two_qfs', 'kl_constraint', 'fixed_alpha', 'seed'])
 
     train_kwargs['return_mode'] = 'full'
     full_score =  train_agent(train_func,
@@ -201,6 +204,7 @@ if __name__=='__main__':
     parser.add_argument('--use_deterministic_evaluation', type=str2bool, default=True)
     parser.add_argument('--policy_update_version', type=int, default=1)
     parser.add_argument('--kl_constraint', type=float, default=0.1)
+    parser.add_argument('--use_two_qfs', type=str2bool, default=True)
 
     train_kwargs = vars(parser.parse_args())
     run(**train_kwargs)

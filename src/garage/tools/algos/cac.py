@@ -122,6 +122,7 @@ class CAC(RLAlgorithm):
             policy_update_version=0,
             kl_constraint=0.01,
             policy_update_tau=5e-3,
+            use_two_qfs=True,
             ):
 
 
@@ -129,6 +130,7 @@ class CAC(RLAlgorithm):
         self._min_q_weight = min_q_weight
         self._n_updates_performed = 0
         self._n_bc_steps = n_bc_steps
+        self._use_two_qfs = use_two_qfs
 
         self._policy_update_version = policy_update_version
         if self._policy_update_version==1:  # XXX Mirror Descent
@@ -139,7 +141,8 @@ class CAC(RLAlgorithm):
         # TODO define the above attributes properly for all cases.
 
         self._qf1 = qf1
-        self._qf2 = qf2
+        if self._use_two_qfs:
+            self._qf2 = qf2
         self.replay_buffer = replay_buffer
         self._tau = target_update_tau
         self._policy_lr = policy_lr
@@ -171,12 +174,14 @@ class CAC(RLAlgorithm):
         self._reward_scale = reward_scale
         # use 2 target q networks
         self._target_qf1 = copy.deepcopy(self._qf1)
-        self._target_qf2 = copy.deepcopy(self._qf2)
+        if self._use_two_qfs:
+            self._target_qf2 = copy.deepcopy(self._qf2)
         self._policy_optimizer = self._optimizer(self.policy.parameters(),
                                                  lr=self._policy_lr)
         self._qf1_optimizer = self._optimizer(self._qf1.parameters(),
                                               lr=self._qf_lr)
-        self._qf2_optimizer = self._optimizer(self._qf2.parameters(),
+        if self._use_two_qfs:
+            self._qf2_optimizer = self._optimizer(self._qf2.parameters(),
                                               lr=self._qf_lr)
         # automatic entropy coefficient tuning
         self._use_automatic_entropy_tuning = fixed_alpha is None
@@ -228,29 +233,36 @@ class CAC(RLAlgorithm):
 
         # Bellman error
         q1_pred = self._qf1(obs, actions)
-        q2_pred = self._qf2(obs, actions)
+        if self._use_two_qfs:
+            q2_pred = self._qf2(obs, actions)
 
         with torch.no_grad():
             new_next_actions_dist = self.policy(next_obs)[0]
             _, new_next_actions = (
                 new_next_actions_dist.rsample_with_pre_tanh_value())
-            target_q_values = torch.min(
-                    self._target_qf1(next_obs, new_next_actions),
-                    self._target_qf2(next_obs, new_next_actions)).flatten()  # no entropy term
+            if self._use_two_qfs:
+                target_q_values = torch.min(
+                        self._target_qf1(next_obs, new_next_actions),
+                        self._target_qf2(next_obs, new_next_actions)).flatten()  # no entropy term
+            else:
+                target_q_values = self._target_qf1(next_obs, new_next_actions).flatten()
+
             q_target = rewards * self._reward_scale + (
                 1. - terminals) * self._discount * target_q_values
         bellman_qf1_loss = F.mse_loss(q1_pred.flatten(), q_target)
-        bellman_qf2_loss = F.mse_loss(q2_pred.flatten(), q_target)
+        bellman_qf2_loss = F.mse_loss(q2_pred.flatten(), q_target) if self._use_two_qfs else 0
+
 
         # Value difference
         with torch.no_grad():
             new_actions_dist = self.policy(obs)[0]
             _, new_actions = new_actions_dist.rsample_with_pre_tanh_value()
         q1_new_actions = self._qf1(obs, new_actions)
-        q2_new_actions = self._qf2(obs, new_actions)
+        if self._use_two_qfs:
+            q2_new_actions = self._qf2(obs, new_actions)
 
         min_qf1_loss = (q1_new_actions - q1_pred).mean() * self._min_q_weight
-        min_qf2_loss = (q2_new_actions - q2_pred).mean() * self._min_q_weight
+        min_qf2_loss = (q2_new_actions - q2_pred).mean() * self._min_q_weight if self._use_two_qfs else 0.
 
         qf1_loss = bellman_qf1_loss + min_qf1_loss
         qf2_loss = bellman_qf2_loss + min_qf2_loss
@@ -259,9 +271,10 @@ class CAC(RLAlgorithm):
         qf1_loss.backward()
         self._qf1_optimizer.step()
 
-        self._qf2_optimizer.zero_grad()
-        qf2_loss.backward()
-        self._qf2_optimizer.step()
+        if self._use_two_qfs:
+            self._qf2_optimizer.zero_grad()
+            qf2_loss.backward()
+            self._qf2_optimizer.step()
 
         ## Actior Loss
         action_dists = self.policy(obs)[0]
@@ -294,8 +307,12 @@ class CAC(RLAlgorithm):
         with torch.no_grad():
             alpha = self._log_alpha.exp()
 
-        min_q_new_actions = torch.min(self._qf1(obs, new_actions),
-                                      self._qf2(obs, new_actions))
+        if self._use_two_qfs:
+            min_q_new_actions = torch.min(self._qf1(obs, new_actions),
+                                          self._qf2(obs, new_actions))
+        else:
+            min_q_new_actions = self._qf1(obs, new_actions)
+
         if self._n_updates_performed < self._n_bc_steps: # BC warmstart
             policy_log_prob = action_dists.log_prob(samples_data['action'])
             policy_loss = (alpha * log_pi_new_actions - policy_log_prob).mean()
@@ -338,8 +355,13 @@ class CAC(RLAlgorithm):
     # Update also the target policy if needed
     def _update_targets(self):
         """Update parameters in the target q-functions."""
-        target_qfs = [self._target_qf1, self._target_qf2]
-        qfs = [self._qf1, self._qf2]
+        if self._use_two_qfs:
+            target_qfs = [self._target_qf1, self._target_qf2]
+            qfs = [self._qf1, self._qf2]
+        else:
+            target_qfs = [self._target_qf1]
+            qfs = [self._qf1]
+
         for target_qf, qf in zip(target_qfs, qfs):
             for t_param, param in zip(target_qf.parameters(), qf.parameters()):
                 t_param.data.copy_(t_param.data * (1.0 - self._tau) +
@@ -383,10 +405,16 @@ class CAC(RLAlgorithm):
             list: A list of networks.
 
         """
-        networks = [
-            self.policy, self._qf1, self._qf2, self._target_qf1,
-            self._target_qf2
-        ]
+        if self._use_two_qfs:
+            networks = [
+                self.policy, self._qf1, self._qf2, self._target_qf1,
+                self._target_qf2
+            ]
+        else:
+            networks = [
+                self.policy, self._qf1, self._target_qf1
+            ]
+
         if self._policy_update_version==1:  # XXX Mirror Descent
             networks.append(self._target_policy)
 
