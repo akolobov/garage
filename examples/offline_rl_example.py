@@ -166,8 +166,10 @@ def train_func(ctxt=None,
                          ignore_shutdown=ignore_shutdown)
 
 
-def run(log_root='.', **train_kwargs):
-    torch.set_num_threads(2)
+def run(log_root='.',
+        torch_n_threads=2,
+        **train_kwargs):
+    torch.set_num_threads(torch_n_threads)
     if train_kwargs['algo']=='CQL':
         log_dir = get_log_dir_name(train_kwargs, ['policy_lr', 'value_lr', 'lagrange_thresh', 'seed'])
     if train_kwargs['algo']=='CAC':
