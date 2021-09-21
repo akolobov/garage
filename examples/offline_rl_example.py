@@ -167,7 +167,7 @@ def train_func(ctxt=None,
 
 
 def run(log_root='.', **train_kwargs):
-    torch.set_num_threads(4)
+    torch.set_num_threads(2)
     if train_kwargs['algo']=='CQL':
         log_dir = get_log_dir_name(train_kwargs, ['policy_lr', 'value_lr', 'lagrange_thresh', 'seed'])
     if train_kwargs['algo']=='CAC':
@@ -190,7 +190,7 @@ if __name__=='__main__':
     parser.add_argument('-e', '---env_name',  type=str, default='hopper-medium-v0')
     parser.add_argument('--discount', type=float, default=0.99)
     parser.add_argument('--gpu_id', type=int, default=-1)  # use cpu by default
-    parser.add_argument('--n_workers', type=int, default=4)
+    parser.add_argument('--n_workers', type=int, default=1)
     parser.add_argument('--force_cpu_data_collection', type=str2bool, default=True)
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--lagrange_thresh', type=float, default=5.0)
