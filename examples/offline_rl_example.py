@@ -1,6 +1,7 @@
 
 import gym, d4rl, torch, os
 import numpy as np
+from urllib.error import HTTPError
 from garage.envs import GymEnv
 from garage.experiment.deterministic import set_seed
 from garage.replay_buffer import PathBuffer
@@ -76,11 +77,16 @@ def train_func(ctxt=None,
     set_seed(seed)
 
     # Initialize gym env
-    _env = gym.make(env_name)
-    env = GymEnv(_env)
+    dataset = None
+    while dataset is None:
+        try:
+            _env = gym.make(env_name)  # d4rl env
+            dataset = d4rl.qlearning_dataset(_env)
+        except HTTPError:
+            pass
 
-    # Initialize replay buffer
-    dataset = d4rl.qlearning_dataset(_env)
+    # Initialize replay buffer and gymenv
+    env = GymEnv(_env)
     replay_buffer = PathBuffer(capacity_in_transitions=int(replay_buffer_size))
     load_d4rl_data_as_buffer(dataset, replay_buffer)
 
