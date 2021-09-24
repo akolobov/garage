@@ -265,7 +265,7 @@ class CAC(RLAlgorithm):
             min_qf2_loss = (q2_new_actions - q2_pred).mean()
 
         if self._penalize_time_out and timeouts.sum()>0:  # Penalize timeout states
-            print('sampled time out states')
+            # print('sampled {} timeout states'.format(timeouts.sum()))
             q1_new_next_actions = self._qf1(next_obs, new_next_actions)
             min_qf1_loss += (q1_new_next_actions.flatten()*timeouts).mean()
             if self._use_two_qfs:
