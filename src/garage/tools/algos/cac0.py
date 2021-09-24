@@ -16,8 +16,6 @@ from garage.torch.algos import SAC
 
 class CAC(RLAlgorithm):
     """A Conservative Actor Critic Model in Torch.
-
-
     Args:
         policy (garage.torch.policy.Policy): Policy/Actor/Agent that is being
             optimized by CQL.
@@ -69,7 +67,6 @@ class CAC(RLAlgorithm):
             episodes. If None, a copy of the train env is used.
         use_deterministic_evaluation (bool): True if the trained policy
             should be evaluated deterministically.
-
         [https://github.com/aviralkumar2907/CQL/blob/master/d4rl/rlkit/torch/sac/cql.py]
         temp (float): Temperature to use when exponentiating Q-values for
             CQL's objective
@@ -123,7 +120,6 @@ class CAC(RLAlgorithm):
             kl_constraint=0.01,
             policy_update_tau=5e-3,
             use_two_qfs=True,
-            penalize_time_out=True,
             ):
 
 
@@ -132,7 +128,6 @@ class CAC(RLAlgorithm):
         self._n_updates_performed = 0
         self._n_bc_steps = n_bc_steps
         self._use_two_qfs = use_two_qfs
-        self._penalize_time_out = penalize_time_out
 
         self._policy_update_version = policy_update_version
         if self._policy_update_version==1:  # XXX Mirror Descent
@@ -205,12 +200,10 @@ class CAC(RLAlgorithm):
 
     def optimize_policy(self, samples_data):
         """Optimize the policy q_functions, and temperature coefficient.
-
         Args:
             samples_data (dict): Transitions(S,A,R,S') that are sampled from
                 the replay buffer. It should have the keys 'observation',
                 'action', 'reward', 'terminal', and 'next_observations'.
-
         Note:
             samples_data's entries should be torch.Tensor's with the following
             shapes:
@@ -219,21 +212,16 @@ class CAC(RLAlgorithm):
                 reward: :math:`(N, 1)`
                 terminal: :math:`(N, 1)`
                 next_observation: :math:`(N, O^*)`
-
         Returns:
             torch.Tensor: loss from actor/policy network after optimization.
             torch.Tensor: loss from 1st q-function after optimization.
             torch.Tensor: loss from 2nd q-function after optimization.
-
         """
         ## Critic Loss
         obs = samples_data['observation']
         actions = samples_data['action']
         rewards = samples_data['reward'].flatten()
-
-        # Need to distinguish between timeout and true terminal states!
-        terminals = (samples_data['terminal']==StepType.TERMINAL).float().flatten()
-        timeouts =  (samples_data['terminal']==StepType.TIMEOUT ).float().flatten()
+        terminals = samples_data['terminal'].flatten()
         next_obs = samples_data['next_observation']
 
         # Bellman error
@@ -241,39 +229,36 @@ class CAC(RLAlgorithm):
         if self._use_two_qfs:
             q2_pred = self._qf2(obs, actions)
 
-        with torch.no_grad():  # Compute target for regression
+        with torch.no_grad():
             new_next_actions_dist = self.policy(next_obs)[0]
-            _, new_next_actions = new_next_actions_dist.rsample_with_pre_tanh_value()
-            target_q_values = self._target_qf1(next_obs, new_next_actions)
+            _, new_next_actions = (
+                new_next_actions_dist.rsample_with_pre_tanh_value())
             if self._use_two_qfs:
-                target_q_values = torch.min(target_q_values, self._target_qf2(next_obs, new_next_actions))  # no entropy term
-            q_target = rewards * self._reward_scale + (1.-terminals) * self._discount * target_q_values.flatten()
+                target_q_values = torch.min(
+                        self._target_qf1(next_obs, new_next_actions),
+                        self._target_qf2(next_obs, new_next_actions)).flatten()  # no entropy term
+            else:
+                target_q_values = self._target_qf1(next_obs, new_next_actions).flatten()
 
+            q_target = rewards * self._reward_scale + (
+                1. - terminals) * self._discount * target_q_values
         bellman_qf1_loss = F.mse_loss(q1_pred.flatten(), q_target)
-        bellman_qf2_loss = F.mse_loss(q2_pred.flatten(), q_target) if self._use_two_qfs else 0.
+        bellman_qf2_loss = F.mse_loss(q2_pred.flatten(), q_target) if self._use_two_qfs else 0
+
 
         # Value difference
         with torch.no_grad():
             new_actions_dist = self.policy(obs)[0]
             _, new_actions = new_actions_dist.rsample_with_pre_tanh_value()
         q1_new_actions = self._qf1(obs, new_actions)
-        min_qf1_loss = (q1_new_actions - q1_pred).mean()
-
-        min_qf2_loss = 0.
         if self._use_two_qfs:
             q2_new_actions = self._qf2(obs, new_actions)
-            min_qf2_loss = (q2_new_actions - q2_pred).mean()
 
-        if self._penalize_time_out and timeouts.sum()>0:  # Penalize timeout states
-            print('sampled time out states')
-            q1_new_next_actions = self._qf1(next_obs, new_next_actions)
-            min_qf1_loss += (q1_new_next_actions.flatten()*timeouts).mean()
-            if self._use_two_qfs:
-                q2_new_next_actions = self._qf2(next_obs, new_next_actions)
-                min_qf2_loss += (q2_new_next_actions.flatten()*timeouts).mean()
+        min_qf1_loss = (q1_new_actions - q1_pred).mean() * self._min_q_weight
+        min_qf2_loss = (q2_new_actions - q2_pred).mean() * self._min_q_weight if self._use_two_qfs else 0.
 
-        qf1_loss = bellman_qf1_loss + min_qf1_loss * self._min_q_weight
-        qf2_loss = bellman_qf2_loss + min_qf2_loss * self._min_q_weight
+        qf1_loss = bellman_qf1_loss + min_qf1_loss
+        qf2_loss = bellman_qf2_loss + min_qf2_loss
 
         self._qf1_optimizer.zero_grad()
         qf1_loss.backward()
@@ -285,39 +270,29 @@ class CAC(RLAlgorithm):
             self._qf2_optimizer.step()
 
         ## Actior Loss
-        # Compuate entropy
         action_dists = self.policy(obs)[0]
-        new_actions_pre_tanh, new_actions = action_dists.rsample_with_pre_tanh_value()
-        log_pi_new_actions = action_dists.log_prob(value=new_actions, pre_tanh_value=new_actions_pre_tanh)
-        policy_entropy = -log_pi_new_actions.mean()
+        new_actions_pre_tanh, new_actions = (
+            action_dists.rsample_with_pre_tanh_value())
+        log_pi_new_actions = action_dists.log_prob(
+            value=new_actions, pre_tanh_value=new_actions_pre_tanh)
 
-        if self._penalize_time_out and timeouts.sum()>0:
-            new_next_actions_dist = self.policy(next_obs)[0]
-            new_next_actions_pre_tanh, new_next_actions = (
-                    new_next_actions_dist.rsample_with_pre_tanh_value())
-            log_pi_new_next_actions = new_next_actions_dist.log_prob(
-                     value=new_next_actions, pre_tanh_value=new_next_actions_pre_tanh)
-            policy_entropy += -(log_pi_new_next_actions.flatten()*timeouts).mean()
-
-        # Compute KL
-        policy_kl = - policy_entropy  # to a uniform distribution up to a constant
         if self._policy_update_version==1:  # XXX Mirror Descent
             with torch.no_grad():
                 target_action_dists = self._target_policy(obs)[0]
             log_target_pi_new_actions = target_action_dists.log_prob(value=new_actions, pre_tanh_value=new_actions_pre_tanh)
-            policy_kl += -log_target_pi_new_actions.mean()
-
-            if self._penalize_time_out and timeouts.sum()>0:
-                with torch.no_grad():
-                    target_next_action_dists = self._target_policy(next_obs)[0]
-                log_target_pi_new_next_actions = target_next_action_dists.log_prob(value=new_next_actions, pre_tanh_value=new_next_actions_pre_tanh)
-                policy_kl += -(log_target_pi_new_next_actions.flatten()*timeouts).mean()
-
+        else:
+            log_target_pi_new_actions = torch.zeros_like(log_pi_new_actions)
 
         alpha_loss = 0
         if self._use_automatic_entropy_tuning:  # it comes first; seems to work also when put after policy update
-           # entropy - target = -kl - target
-            alpha_loss = self._log_alpha * (-policy_kl.detach() - self._target_entropy)
+           # entropy - target
+            alpha_loss = (-self._log_alpha * (log_pi_new_actions.detach() + self._target_entropy)).mean()
+            if self._policy_update_version==1: #  XXX Mirror Descent
+                # target_kl - kl =  - target_entropy - kl = - target_entropy + entropy + p log u = alpha_loss + p log u
+                alpha_loss = alpha_loss + (self._log_alpha*log_target_pi_new_actions.detach()).mean()
+                # alpha = self._log_alpha.exp()
+                # alpha_loss = (alpha*(-self._target_entropy - log_pi_new_actions.detach() + log_target_pi_new_actions.detach())).mean()
+
             self._alpha_optimizer.zero_grad()
             alpha_loss.backward()
             self._alpha_optimizer.step()
@@ -325,24 +300,27 @@ class CAC(RLAlgorithm):
         with torch.no_grad():
             alpha = self._log_alpha.exp()
 
-        # Compute performance difference lower bound
-        min_q_new_actions = self._qf1(obs, new_actions)
         if self._use_two_qfs:
-            min_q_new_actions = torch.min(min_q_new_actions, self._qf2(obs, new_actions))
-        lower_bound = min_q_new_actions.mean()
-
-        if self._penalize_time_out and timeouts.sum()>0:
-            min_q_new_next_actions = self._qf1(next_obs, new_next_actions)
-            if self._use_two_qfs:
-                min_q_new_next_actions = torch.min(min_q_new_next_actions, self._qf2(next_obs, new_next_actions))
-            lower_bound += (min_q_new_next_actions.flatten()*timeouts).mean()
+            min_q_new_actions = torch.min(self._qf1(obs, new_actions),
+                                          self._qf2(obs, new_actions))
+        else:
+            min_q_new_actions = self._qf1(obs, new_actions)
 
         if self._n_updates_performed < self._n_bc_steps: # BC warmstart
             policy_log_prob = action_dists.log_prob(samples_data['action'])
-            policy_loss = - policy_log_prob.mean() + alpha * policy_kl
+            policy_loss = (alpha * log_pi_new_actions - policy_log_prob).mean()
         else:
-            policy_loss = - lower_bound + alpha * policy_kl
+            policy_loss = ((alpha * log_pi_new_actions) - min_q_new_actions.flatten()).mean()
 
+        if self._policy_update_version==1: #  XXX Mirror Descent
+            policy_loss = policy_loss - (alpha*log_target_pi_new_actions).mean()
+
+
+        # Logging
+        with torch.no_grad():
+            policy_kl = (log_pi_new_actions - log_target_pi_new_actions).mean()
+            policy_entropy = - log_pi_new_actions.mean()
+            lower_bound = min_q_new_actions.mean()
 
         self._policy_optimizer.zero_grad()
         policy_loss.backward()
@@ -364,7 +342,6 @@ class CAC(RLAlgorithm):
                     policy_entropy=policy_entropy,
                     alpha=alpha,
                     lower_bound=lower_bound)
-
         return log_info
 
     # Update also the target policy if needed
@@ -390,10 +367,8 @@ class CAC(RLAlgorithm):
     # Set also the target policy if needed
     def to(self, device=None):
         """Put all the networks within the model on device.
-
         Args:
             device (str): ID of GPU or CPU.
-
         """
         if device is None:
             device = global_device()
@@ -415,10 +390,8 @@ class CAC(RLAlgorithm):
     @property
     def networks(self):
         """Return all the networks within the model.
-
         Returns:
             list: A list of networks.
-
         """
         if self._use_two_qfs:
             networks = [
@@ -438,17 +411,13 @@ class CAC(RLAlgorithm):
     # Evaluate both the deterministic and the stochastic policies
     def _evaluate_policy(self, epoch):
         """Evaluate the performance of the policy via deterministic sampling.
-
             Statistics such as (average) discounted return and success rate are
             recorded.
-
         Args:
             epoch (int): The current training epoch.
-
         Returns:
             float: The average return across self._num_evaluation_episodes
                 episodes
-
         """
         eval_episodes = obtain_evaluation_episodes(
             self.policy,
@@ -478,15 +447,12 @@ class CAC(RLAlgorithm):
     # Below is overwritten for general logging with log_info
     def train(self, trainer):
         """Obtain samplers and start actual training for each epoch.
-
         Args:
             trainer (Trainer): Gives the algorithm the access to
                 :method:`~Trainer.step_epochs()`, which provides services
                 such as snapshotting and sampler control.
-
         Returns:
             float: The average return in last epoch cycle.
-
         """
         if not self._eval_env:
             self._eval_env = trainer.get_env_copy()
@@ -503,7 +469,6 @@ class CAC(RLAlgorithm):
                 path_returns = []
                 for path in trainer.step_episode:
                     self.replay_buffer.add_path(
-                        # TODO need to update the terminal format
                         dict(observation=path['observations'],
                              action=path['actions'],
                              reward=path['rewards'].reshape(-1, 1),
@@ -527,17 +492,14 @@ class CAC(RLAlgorithm):
 
     def train_once(self, itr=None, paths=None):
         """Complete 1 training iteration of SAC.
-
         Args:
             itr (int): Iteration number. This argument is deprecated.
             paths (list[dict]): A list of collected paths.
                 This argument is deprecated.
-
         Returns:
             torch.Tensor: loss from actor/policy network after optimization.
             torch.Tensor: loss from 1st q-function after optimization.
             torch.Tensor: loss from 2nd q-function after optimization.
-
         """
         del itr
         del paths
@@ -552,12 +514,10 @@ class CAC(RLAlgorithm):
 
     def _log_statistics(self, log_info):
         """Record training statistics to dowel such as losses and returns.
-
         Args:
             policy_loss (torch.Tensor): loss from actor/policy network.
             qf1_loss (torch.Tensor): loss from 1st qf/critic network.
             qf2_loss (torch.Tensor): loss from 2nd qf/critic network.
-
         """
         for k, v in log_info.items():
             tabular.record('Algorithm/'+k, float(v))

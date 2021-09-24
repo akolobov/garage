@@ -6,23 +6,48 @@ from garage.envs import GymEnv
 from garage.experiment.deterministic import set_seed
 from garage.replay_buffer import PathBuffer
 from garage.torch.algos import SAC
-from garage.tools.algos import CQL, CAC
+from garage.tools.algos import CQL, CAC, CAC0
 from garage.torch.policies import TanhGaussianMLPPolicy
 from garage.torch.q_functions import ContinuousMLPQFunction
 from garage.tools.rl_utils import train_agent, get_sampler, setup_gpu, get_algo, get_log_dir_name
 
 from garage.tools.trainer import Trainer
+from garage import StepType
 
 def load_d4rl_data_as_buffer(dataset, replay_buffer):
     assert isinstance(replay_buffer, PathBuffer)
+    # Determine whether timeout or absorbing happens
+    terminals = np.zeros(dataset['terminals'].shape).reshape(-1,1)
+    true_terminals = dataset['terminals']
+    terminals[true_terminals] = StepType.TERMINAL
+
+    observation=dataset['observations']
+    next_observation=dataset['next_observations']
+    diff = np.sum(np.abs(observation[1:]-next_observation[:-1]),axis=1)
+    timeout = np.logical_not(np.isclose(diff,0.))
+    timeout = np.concatenate((timeout, [not true_terminals[-1]]))
+    terminals[timeout] = StepType.TIMEOUT
+
+    # Make sure timeouts are not true terminal
+    assert np.sum(timeout*true_terminals)<=0
+
     replay_buffer.add_path(
         dict(observation=dataset['observations'],
-            action=dataset['actions'],
-            reward=dataset['rewards'].reshape(-1, 1),
-            next_observation=dataset['next_observations'],
-            terminal=dataset['terminals'].reshape(-1, 1))
-    )
+             action=dataset['actions'],
+             reward=dataset['rewards'].reshape(-1, 1),
+             next_observation=dataset['next_observations'],
+             terminal=terminals,
+    ))
 
+def load_d4rl_data_as_buffer_basic(dataset, replay_buffer):
+    assert isinstance(replay_buffer, PathBuffer)
+    replay_buffer.add_path(
+        dict(observation=dataset['observations'],
+             action=dataset['actions'],
+             reward=dataset['rewards'].reshape(-1, 1),
+             next_observation=dataset['next_observations'],
+             terminal=dataset['terminals'].reshape(-1,1),
+    ))
 
 def train_func(ctxt=None,
                *,
@@ -59,6 +84,7 @@ def train_func(ctxt=None,
                policy_update_version=1,
                kl_constraint=0.1,
                policy_update_tau=5e-3, # for the policy.
+               penalize_time_out=True,
                # Compute parameters
                seed=0,
                n_workers=1,  # number of workers for data collection
@@ -88,7 +114,11 @@ def train_func(ctxt=None,
     # Initialize replay buffer and gymenv
     env = GymEnv(_env)
     replay_buffer = PathBuffer(capacity_in_transitions=int(replay_buffer_size))
-    load_d4rl_data_as_buffer(dataset, replay_buffer)
+
+    if algo=='CAC':
+        load_d4rl_data_as_buffer(dataset, replay_buffer)
+    else:
+        load_d4rl_data_as_buffer_basic(dataset, replay_buffer)
 
     # Initialize the algorithm
     env_spec = env.spec
@@ -149,7 +179,17 @@ def train_func(ctxt=None,
             kl_constraint=kl_constraint,
             policy_update_tau=policy_update_tau,
             use_two_qfs=use_two_qfs,
+            penalize_time_out=penalize_time_out,
         )
+    elif algo=='CAC0':
+        extra_algo_config = dict(
+            min_q_weight=min_q_weight,
+            policy_update_version=policy_update_version,
+            kl_constraint=kl_constraint,
+            policy_update_tau=policy_update_tau,
+            use_two_qfs=use_two_qfs,
+        )
+
     algo_config.update(extra_algo_config)
 
 
@@ -177,11 +217,11 @@ def run(log_root='.',
         **train_kwargs):
     torch.set_num_threads(torch_n_threads)
     if train_kwargs['algo']=='CQL':
-        log_dir = get_log_dir_name(train_kwargs, ['policy_lr', 'value_lr', 'lagrange_thresh', 'seed'])
-    if train_kwargs['algo']=='CAC':
+        log_dir = get_log_dir_name(train_kwargs, ['policy_lr', 'value_lr', 'lagrange_thresh', 'min_q_weight', 'seed'])
+    if train_kwargs['algo'] in ['CAC', 'CAC0']:
         log_dir = get_log_dir_name(train_kwargs, ['policy_update_version', 'policy_lr', 'value_lr', 'target_update_tau', 'policy_update_tau',
+                                                  'min_q_weight', 'penalize_time_out',
                                                   'use_two_qfs', 'kl_constraint', 'fixed_alpha', 'seed'])
-
     train_kwargs['return_mode'] = 'full'
     full_score =  train_agent(train_func,
                     log_dir=os.path.join(log_root,'testdata','Offline'+train_kwargs['algo']+'_'+train_kwargs['env_name'], log_dir),
@@ -213,6 +253,7 @@ if __name__=='__main__':
     parser.add_argument('--policy_update_version', type=int, default=1)
     parser.add_argument('--kl_constraint', type=float, default=0.1)
     parser.add_argument('--use_two_qfs', type=str2bool, default=True)
+    parser.add_argument('--penalize_time_out', type=str2bool, default=True)
 
     train_kwargs = vars(parser.parse_args())
     run(**train_kwargs)
