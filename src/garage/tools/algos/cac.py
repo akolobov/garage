@@ -108,9 +108,9 @@ class CAC(RLAlgorithm):
             discount=0.99,
             buffer_batch_size=64,
             min_buffer_size=int(1e4),
-            target_update_tau=5e-3,  # 1e-2
-            policy_lr=1e-4,  # 1e-3
-            qf_lr=3e-4,  # 1e-3
+            target_update_tau=5e-3,# 1e-2
+            policy_lr=5e-5,  # 1e-3
+            qf_lr=5e-4,  # 1e-3
             reward_scale=1.0,
             optimizer=torch.optim.Adam,
             steps_per_epoch=1,
@@ -118,14 +118,15 @@ class CAC(RLAlgorithm):
             eval_env=None,
             use_deterministic_evaluation=True,
             min_q_weight=1.0,
-            n_bc_steps=0,
-            policy_update_version=0,
-            kl_constraint=0.01,
-            policy_update_tau=5e-3,
+            n_bc_steps=20000,
+            policy_update_version=1,
+            kl_constraint=0.05,
+            policy_update_tau=None, # 1e-3,
             use_two_qfs=True,
             penalize_time_out=True,
             ):
 
+        policy_update_tau = policy_update_tau or target_update_tau
 
         # CAC parameters
         self._min_q_weight = min_q_weight

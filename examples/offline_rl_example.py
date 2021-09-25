@@ -66,13 +66,13 @@ def train_func(ctxt=None,
                value_hidden_nonlinearity=torch.nn.ReLU,
                # Algorithm parameters
                discount=0.99,
-               policy_lr=1e-4,  # optimization stepsize for policy update
-               value_lr=3e-4,  # optimization stepsize for value regression
+               policy_lr=5e-5,  # optimization stepsize for policy update
+               value_lr=5e-4,  # optimization stepsize for value regression
                target_update_tau=5e-3, # for target network
                minibatch_size=256,  # optimization/replaybuffer minibatch size
                n_grad_steps=1000,  # number of gradient updates per epoch
                steps_per_epoch=1,  # number of internal epochs steps per epoch
-               n_bc_steps=10000,
+               n_bc_steps=20000,
                fixed_alpha=None,
                use_two_qfs=True,
                use_deterministic_evaluation=True,
@@ -82,8 +82,8 @@ def train_func(ctxt=None,
                min_q_weight=1.0,
                # CAC parameters
                policy_update_version=1,
-               kl_constraint=0.1,
-               policy_update_tau=5e-3, # for the policy.
+               kl_constraint=0.05,
+               policy_update_tau=None, # for the policy.
                penalize_time_out=True,
                # Compute parameters
                seed=0,
@@ -220,8 +220,7 @@ def run(log_root='.',
         log_dir = get_log_dir_name(train_kwargs, ['policy_lr', 'value_lr', 'lagrange_thresh', 'min_q_weight', 'seed'])
     if train_kwargs['algo'] in ['CAC', 'CAC0']:
         log_dir = get_log_dir_name(train_kwargs, ['policy_update_version', 'policy_lr', 'value_lr', 'target_update_tau', 'policy_update_tau',
-                                                  'min_q_weight', 'penalize_time_out',
-                                                  'use_two_qfs', 'kl_constraint', 'fixed_alpha', 'seed'])
+                                                  'min_q_weight','kl_constraint', 'use_two_qfs', 'seed'])
     train_kwargs['return_mode'] = 'full'
     full_score =  train_agent(train_func,
                     log_dir=os.path.join(log_root,'testdata','Offline'+train_kwargs['algo']+'_'+train_kwargs['env_name'], log_dir),
@@ -242,16 +241,16 @@ if __name__=='__main__':
     parser.add_argument('--force_cpu_data_collection', type=str2bool, default=True)
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--lagrange_thresh', type=float, default=5.0)
-    parser.add_argument('--n_bc_steps', type=int, default=10000)  # 40000
+    parser.add_argument('--n_bc_steps', type=int, default=20000)  # 40000
     parser.add_argument('--fixed_alpha', type=float, default=None)
     parser.add_argument('--min_q_weight', type=float, default=1.0)
-    parser.add_argument('--policy_lr', type=float, default=1e-4)
-    parser.add_argument('--value_lr', type=float, default=3e-4)
+    parser.add_argument('--policy_lr', type=float, default=5e-5)
+    parser.add_argument('--value_lr', type=float, default=5e-4)
     parser.add_argument('--target_update_tau', type=float, default=5e-3)
-    parser.add_argument('--policy_update_tau', type=float, default=5e-3)
+    parser.add_argument('--policy_update_tau', type=float, default=None)
     parser.add_argument('--use_deterministic_evaluation', type=str2bool, default=True)
     parser.add_argument('--policy_update_version', type=int, default=1)
-    parser.add_argument('--kl_constraint', type=float, default=0.1)
+    parser.add_argument('--kl_constraint', type=float, default=0.05)
     parser.add_argument('--use_two_qfs', type=str2bool, default=True)
     parser.add_argument('--penalize_time_out', type=str2bool, default=True)
 
