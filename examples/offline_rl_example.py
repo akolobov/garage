@@ -64,6 +64,7 @@ def train_func(ctxt=None,
                policy_init_std=1.0,
                value_hidden_sizes=(256, 256, 256),
                value_hidden_nonlinearity=torch.nn.ReLU,
+               min_std=1e-5,
                # Algorithm parameters
                discount=0.99,
                policy_lr=5e-5,  # optimization stepsize for policy update
@@ -76,13 +77,14 @@ def train_func(ctxt=None,
                fixed_alpha=None,
                use_two_qfs=True,
                use_deterministic_evaluation=True,
-               num_evaluation_episodes=10, # number of episodes to evaluate (only affect off-policy algorithms)
+               num_evaluation_episodes=5, # number of episodes to evaluate (only affect off-policy algorithms)
                # CQL parameters
                lagrange_thresh=5.0,
                min_q_weight=1.0,
                # CAC parameters
                policy_update_version=1,
                kl_constraint=0.05,
+               alpha_lr=None,  # stepsize for controlling the entropy
                policy_update_tau=None, # for the policy.
                penalize_time_out=True,
                # Compute parameters
@@ -127,7 +129,8 @@ def train_func(ctxt=None,
                 env_spec=env_spec,
                 hidden_sizes=policy_hidden_sizes,
                 hidden_nonlinearity=policy_hidden_nonlinearity,
-                init_std=policy_init_std)
+                init_std=policy_init_std,
+                min_std=min_std)
 
     qf1 = ContinuousMLPQFunction(
                 env_spec=env_spec,
@@ -142,7 +145,6 @@ def train_func(ctxt=None,
                 output_nonlinearity=None)
 
     sampler = get_sampler(policy, env, n_workers=n_workers)
-
 
     Algo = globals()[algo]
 
@@ -180,6 +182,7 @@ def train_func(ctxt=None,
             policy_update_tau=policy_update_tau,
             use_two_qfs=use_two_qfs,
             penalize_time_out=penalize_time_out,
+            alpha_lr=alpha_lr,
         )
     elif algo=='CAC0':
         extra_algo_config = dict(
@@ -220,7 +223,7 @@ def run(log_root='.',
         log_dir = get_log_dir_name(train_kwargs, ['policy_lr', 'value_lr', 'lagrange_thresh', 'min_q_weight', 'seed'])
     if train_kwargs['algo'] in ['CAC', 'CAC0']:
         log_dir = get_log_dir_name(train_kwargs, ['policy_update_version', 'policy_lr', 'value_lr', 'target_update_tau', 'policy_update_tau',
-                                                  'min_q_weight','kl_constraint', 'use_two_qfs', 'seed'])
+                                                  'alpha_lr', 'fixed_alpha', 'min_q_weight','kl_constraint', 'use_two_qfs', 'n_bc_steps', 'seed'])
     train_kwargs['return_mode'] = 'full'
     full_score =  train_agent(train_func,
                     log_dir=os.path.join(log_root,'testdata','Offline'+train_kwargs['algo']+'_'+train_kwargs['env_name'], log_dir),
@@ -246,6 +249,7 @@ if __name__=='__main__':
     parser.add_argument('--min_q_weight', type=float, default=1.0)
     parser.add_argument('--policy_lr', type=float, default=5e-5)
     parser.add_argument('--value_lr', type=float, default=5e-4)
+    parser.add_argument('--alpha_lr', type=float, default=None)
     parser.add_argument('--target_update_tau', type=float, default=5e-3)
     parser.add_argument('--policy_update_tau', type=float, default=None)
     parser.add_argument('--use_deterministic_evaluation', type=str2bool, default=True)

@@ -111,6 +111,7 @@ class CAC(RLAlgorithm):
             target_update_tau=5e-3,# 1e-2
             policy_lr=5e-5,  # 1e-3
             qf_lr=5e-4,  # 1e-3
+            alpha_lr=None,
             reward_scale=1.0,
             optimizer=torch.optim.Adam,
             steps_per_epoch=1,
@@ -127,6 +128,7 @@ class CAC(RLAlgorithm):
             ):
 
         policy_update_tau = policy_update_tau or target_update_tau
+        alpha_lr = alpha_lr or qf_lr # or policy_lr?
 
         # CAC parameters
         self._min_q_weight = min_q_weight
@@ -150,6 +152,7 @@ class CAC(RLAlgorithm):
         self._tau = target_update_tau
         self._policy_lr = policy_lr
         self._qf_lr = qf_lr
+        self._alpha_lr = alpha_lr
         self._initial_log_entropy = initial_log_entropy
         self._gradient_steps = gradient_steps_per_itr
         self._optimizer = optimizer
@@ -198,7 +201,7 @@ class CAC(RLAlgorithm):
             self._log_alpha = torch.Tensor([self._initial_log_entropy
                                             ]).requires_grad_()
             self._alpha_optimizer = optimizer([self._log_alpha],
-                                              lr=self._policy_lr)
+                                              lr=self._alpha_lr)
         else:
             self._log_alpha = torch.Tensor([self._fixed_alpha]).log()
         self.episode_rewards = deque(maxlen=30)
@@ -407,7 +410,7 @@ class CAC(RLAlgorithm):
             self._log_alpha = torch.Tensor([self._initial_log_entropy
                                             ]).to(device).requires_grad_()
             self._alpha_optimizer = self._optimizer([self._log_alpha],
-                                                    lr=self._policy_lr)
+                                                    lr=self._alpha_lr)
 
         if self._policy_update_version==1:  # XXX Mirror Descent
             self._target_policy.to(device)
