@@ -14,7 +14,8 @@ class Trainer(garageTrainer):
     """ A modifed version of the Garage Trainer.
 
         This subclass adds
-            1) a light saving mode to minimze the stroage usage.
+            1) a light saving mode to minimze the stroage usage (only saving the
+               networks, not the trainer and the full algo.)
             2) a ignore_shutdown flag for running multiple experiments.
             3) a return_attr option.
             4) a cpu data collection mode.
@@ -150,8 +151,9 @@ class Trainer(garageTrainer):
         self._start_worker()
 
         log_dir = self._snapshotter.snapshot_dir
-        summary_file = os.path.join(log_dir, 'experiment.json')
-        dump_json(summary_file, self)
+        if self.save_mode !='light':
+            summary_file = os.path.join(log_dir, 'experiment.json')
+            dump_json(summary_file, self)
 
         # Train the agent
         last_return = self._algo.train(self)
