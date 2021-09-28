@@ -112,6 +112,7 @@ class CAC(RLAlgorithm):
             policy_lr=5e-5,  # 1e-3
             qf_lr=5e-4,  # 1e-3
             alpha_lr=None,
+            bc_policy_lr=None,
             reward_scale=1.0,
             optimizer=torch.optim.Adam,
             steps_per_epoch=1,
@@ -128,7 +129,12 @@ class CAC(RLAlgorithm):
             ):
 
         policy_update_tau = policy_update_tau or target_update_tau
-        alpha_lr = alpha_lr or qf_lr # or policy_lr?
+        alpha_lr = alpha_lr or qf_lr   # potentially a larger stepsize
+        bc_policy_lr = bc_policy_lr or qf_lr  # potentially a larger stepsize
+
+        r_max = np.max(replay_buffer._buffer['reward'])
+        r_min = np.min(replay_buffer._buffer['reward'])
+        reward_scale = min(1./(r_max - r_min + 1e-6), 1.)
 
         # CAC parameters
         self._min_q_weight = min_q_weight
@@ -153,6 +159,7 @@ class CAC(RLAlgorithm):
         self._policy_lr = policy_lr
         self._qf_lr = qf_lr
         self._alpha_lr = alpha_lr
+        self._bc_policy_lr = bc_policy_lr
         self._initial_log_entropy = initial_log_entropy
         self._gradient_steps = gradient_steps_per_itr
         self._optimizer = optimizer
@@ -183,7 +190,8 @@ class CAC(RLAlgorithm):
         if self._use_two_qfs:
             self._target_qf2 = copy.deepcopy(self._qf2)
         self._policy_optimizer = self._optimizer(self.policy.parameters(),
-                                                 lr=self._policy_lr)
+                                                 lr=self._bc_policy_lr)
+                                                #  lr=self._policy_lr)
         self._qf1_optimizer = self._optimizer(self._qf1.parameters(),
                                               lr=self._qf_lr)
         if self._use_two_qfs:
@@ -289,6 +297,16 @@ class CAC(RLAlgorithm):
             self._qf2_optimizer.step()
 
         ## Actior Loss
+        #  Perform BC for self._n_bc_steps iterations, and then CAC.
+        if self._n_updates_performed==self._n_bc_steps:
+            # reset optimizers since the objective changes
+            if self._use_automatic_entropy_tuning:
+                self._log_alpha = torch.Tensor([self._initial_log_entropy]).requires_grad_()
+                self._alpha_optimizer = self._optimizer([self._log_alpha],
+                                                         lr=self._alpha_lr)
+            self._policy_optimizer = self._optimizer(self.policy.parameters(),
+                                                     lr=self._policy_lr)
+
         # Compuate entropy
         action_dists = self.policy(obs)[0]
         new_actions_pre_tanh, new_actions = action_dists.rsample_with_pre_tanh_value()
@@ -367,7 +385,8 @@ class CAC(RLAlgorithm):
                     policy_kl=policy_kl,
                     policy_entropy=policy_entropy,
                     alpha=alpha,
-                    lower_bound=lower_bound)
+                    lower_bound=lower_bound,
+                    reward_scale=self._reward_scale)
 
         return log_info
 
