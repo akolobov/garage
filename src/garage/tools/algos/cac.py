@@ -127,43 +127,36 @@ class CAC(RLAlgorithm):
             use_two_qfs=True,
             penalize_time_out=True,
             policy_lr_decay_rate=0,  # per epoch
+            decorrelate_actions=False,
             ):
-
-        policy_update_tau = policy_update_tau or target_update_tau
-        alpha_lr = alpha_lr or qf_lr   # potentially a larger stepsize
-        bc_policy_lr = bc_policy_lr or qf_lr  # potentially a larger stepsize
-        self._policy_lr_decay_rate = policy_lr_decay_rate
-        self._scheduler = None
-
-        # Normalize the rewards to be in [-10, 10]
-        r_max = np.abs(np.max(replay_buffer._buffer['reward']))
-        r_min = np.abs(np.min(replay_buffer._buffer['reward']))
-        reward_scale = 10./(max(r_min, r_max) + 1e-6)
 
         # CAC parameters
         self._min_q_weight = min_q_weight
-        self._n_updates_performed = 0
         self._n_bc_steps = n_bc_steps
+        self._n_updates_performed = 0  # counter for bc
         self._use_two_qfs = use_two_qfs
         self._penalize_time_out = penalize_time_out
-
+        self._policy_lr_decay_rate = policy_lr_decay_rate
+        self._scheduler = None
+        self._decorrelate_actions = decorrelate_actions
+        self._alpha_lr =  alpha_lr or qf_lr   # potentially a larger stepsize
+        self._bc_policy_lr = bc_policy_lr or qf_lr  # potentially a larger stepsize
         self._policy_update_version = policy_update_version
+        self._policy_update_tau = policy_update_tau or target_update_tau
+        self._target_policy = None
+
         if self._policy_update_version==1:  # XXX Mirror Descent
             self._target_policy = copy.deepcopy(policy)
             if target_entropy is None:
                  target_entropy = -kl_constraint  # negative entropy
-                 self._policy_update_tau = policy_update_tau
-        # TODO define the above attributes properly for all cases.
 
+        # SAC parameters
         self._qf1 = qf1
-        if self._use_two_qfs:
-            self._qf2 = qf2
+        self._qf2 = qf2
         self.replay_buffer = replay_buffer
         self._tau = target_update_tau
         self._policy_lr = policy_lr
         self._qf_lr = qf_lr
-        self._alpha_lr = alpha_lr
-        self._bc_policy_lr = bc_policy_lr
         self._initial_log_entropy = initial_log_entropy
         self._gradient_steps = gradient_steps_per_itr
         self._optimizer = optimizer
@@ -191,15 +184,12 @@ class CAC(RLAlgorithm):
         self._reward_scale = reward_scale
         # use 2 target q networks
         self._target_qf1 = copy.deepcopy(self._qf1)
-        if self._use_two_qfs:
-            self._target_qf2 = copy.deepcopy(self._qf2)
+        self._target_qf2 = copy.deepcopy(self._qf2)
         self._policy_optimizer = self._optimizer(self.policy.parameters(),
-                                                 lr=self._bc_policy_lr)
-                                                #  lr=self._policy_lr)
+                                                 lr=self._bc_policy_lr) #  lr=self._policy_lr)
         self._qf1_optimizer = self._optimizer(self._qf1.parameters(),
                                               lr=self._qf_lr)
-        if self._use_two_qfs:
-            self._qf2_optimizer = self._optimizer(self._qf2.parameters(),
+        self._qf2_optimizer = self._optimizer(self._qf2.parameters(),
                                               lr=self._qf_lr)
         # automatic entropy coefficient tuning
         self._use_automatic_entropy_tuning = fixed_alpha is None
@@ -257,9 +247,9 @@ class CAC(RLAlgorithm):
         if self._use_two_qfs:
             q2_pred = self._qf2(obs, actions)
 
+        new_next_actions_dist = self.policy(next_obs)[0]
+        new_next_actions_pre_tanh, new_next_actions = new_next_actions_dist.rsample_with_pre_tanh_value()
         with torch.no_grad():  # Compute target for regression
-            new_next_actions_dist = self.policy(next_obs)[0]
-            _, new_next_actions = new_next_actions_dist.rsample_with_pre_tanh_value()
             target_q_values = self._target_qf1(next_obs, new_next_actions)
             if self._use_two_qfs:
                 target_q_values = torch.min(target_q_values, self._target_qf2(next_obs, new_next_actions))  # no entropy term
@@ -269,23 +259,22 @@ class CAC(RLAlgorithm):
         bellman_qf2_loss = F.mse_loss(q2_pred.flatten(), q_target) if self._use_two_qfs else 0.
 
         # Value difference
-        with torch.no_grad():
-            new_actions_dist = self.policy(obs)[0]
-            _, new_actions = new_actions_dist.rsample_with_pre_tanh_value()
-        q1_new_actions = self._qf1(obs, new_actions)
+        new_actions_dist = self.policy(obs)[0]
+        new_actions_pre_tanh, new_actions = new_actions_dist.rsample_with_pre_tanh_value()
+        q1_new_actions = self._qf1(obs, new_actions.detach())
         min_qf1_loss = (q1_new_actions - q1_pred).mean()
 
         min_qf2_loss = 0.
         if self._use_two_qfs:
-            q2_new_actions = self._qf2(obs, new_actions)
+            q2_new_actions = self._qf2(obs, new_actions.detach())
             min_qf2_loss = (q2_new_actions - q2_pred).mean()
 
         if self._penalize_time_out and timeouts.sum()>0:  # Penalize timeout states
             # print('sampled {} timeout states'.format(timeouts.sum()))
-            q1_new_next_actions = self._qf1(next_obs, new_next_actions)
+            q1_new_next_actions = self._qf1(next_obs, new_next_actions.detach())
             min_qf1_loss += (q1_new_next_actions.flatten()*timeouts).mean()
             if self._use_two_qfs:
-                q2_new_next_actions = self._qf2(next_obs, new_next_actions)
+                q2_new_next_actions = self._qf2(next_obs, new_next_actions.detach())
                 min_qf2_loss += (q2_new_next_actions.flatten()*timeouts).mean()
 
         qf1_loss = bellman_qf1_loss + min_qf1_loss * self._min_q_weight
@@ -306,25 +295,24 @@ class CAC(RLAlgorithm):
             # Reset optimizers since the objective changes from BC to CAC.
             if self._use_automatic_entropy_tuning:
                 self._log_alpha = torch.Tensor([self._initial_log_entropy]).requires_grad_().to(self._log_alpha.device)
-                self._alpha_optimizer = self._optimizer([self._log_alpha],
-                                                         lr=self._alpha_lr)
-            self._policy_optimizer = self._optimizer(self.policy.parameters(),
-                                                     lr=self._policy_lr)
+                self._alpha_optimizer = self._optimizer([self._log_alpha], lr=self._alpha_lr)
+            self._policy_optimizer = self._optimizer(self.policy.parameters(), lr=self._policy_lr)
             # Use decaying learning rate for no regret
             from torch.optim.lr_scheduler import LambdaLR
             self._scheduler = LambdaLR(self._policy_optimizer,
                                        lr_lambda=lambda i: 1.0/np.sqrt(1+i*self._policy_lr_decay_rate/self._gradient_steps))
 
         # Compuate entropy
-        action_dists = self.policy(obs)[0]
-        new_actions_pre_tanh, new_actions = action_dists.rsample_with_pre_tanh_value()
-        log_pi_new_actions = action_dists.log_prob(value=new_actions, pre_tanh_value=new_actions_pre_tanh)
+        if self._decorrelate_actions:
+            new_actions_dist = self.policy(obs)[0]
+            new_actions_pre_tanh, new_actions = new_actions_dist.rsample_with_pre_tanh_value()
+        log_pi_new_actions = new_actions_dist.log_prob(value=new_actions, pre_tanh_value=new_actions_pre_tanh)
         policy_entropy = -log_pi_new_actions.mean()
 
         if self._penalize_time_out and timeouts.sum()>0:
-            new_next_actions_dist = self.policy(next_obs)[0]
-            new_next_actions_pre_tanh, new_next_actions = (
-                    new_next_actions_dist.rsample_with_pre_tanh_value())
+            if self._decorrelate_actions:
+                new_next_actions_dist = self.policy(next_obs)[0]
+                new_next_actions_pre_tanh, new_next_actions = new_next_actions_dist.rsample_with_pre_tanh_value()
             log_pi_new_next_actions = new_next_actions_dist.log_prob(
                      value=new_next_actions, pre_tanh_value=new_next_actions_pre_tanh)
             policy_entropy += -(log_pi_new_next_actions.flatten()*timeouts).mean()
@@ -368,7 +356,7 @@ class CAC(RLAlgorithm):
             lower_bound += (min_q_new_next_actions.flatten()*timeouts).mean()
 
         if self._n_updates_performed < self._n_bc_steps: # BC warmstart
-            policy_log_prob = action_dists.log_prob(samples_data['action'])
+            policy_log_prob = new_actions_dist.log_prob(samples_data['action'])
             policy_loss = - policy_log_prob.mean() + alpha * policy_kl
         else:
             policy_loss = - lower_bound + alpha * policy_kl
