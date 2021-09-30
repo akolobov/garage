@@ -58,6 +58,7 @@ def train_func(ctxt=None,
                n_epochs=3000,  # number of training epochs
                batch_size=0,  # number of samples collected per update
                replay_buffer_size=int(2e6),
+               normalize_reward=True,  # normalize the reawrd to be in [-10, 10]
                # Network parameters
                policy_hidden_sizes=(256, 256, 256),
                policy_hidden_nonlinearity=torch.nn.ReLU,
@@ -89,6 +90,7 @@ def train_func(ctxt=None,
                policy_lr_decay_rate=0, # decay rate of policy_lr in CAC
                policy_update_tau=None, # for the policy.
                penalize_time_out=True,
+               decorrelate_actions=False,
                # Compute parameters
                seed=0,
                n_workers=1,  # number of workers for data collection
@@ -123,6 +125,14 @@ def train_func(ctxt=None,
         load_d4rl_data_as_buffer(dataset, replay_buffer)
     else:
         load_d4rl_data_as_buffer_basic(dataset, replay_buffer)
+
+    # Normalize the rewards to be in [-10, 10]
+    if normalize_reward:
+        r_max = np.abs(np.max(replay_buffer._buffer['reward']))
+        r_min = np.abs(np.min(replay_buffer._buffer['reward']))
+        reward_scale = 10./(max(r_min, r_max) + 1e-6)
+    else:
+        reward_scale = 1.0
 
     # Initialize the algorithm
     env_spec = env.spec
@@ -168,7 +178,8 @@ def train_func(ctxt=None,
                 min_buffer_size=int(0),
                 num_evaluation_episodes=num_evaluation_episodes,
                 n_bc_steps=n_bc_steps,
-                fixed_alpha=fixed_alpha
+                fixed_alpha=fixed_alpha,
+                reward_scale=reward_scale,
     )
     extra_algo_config = dict()
     if algo=='CQL':
@@ -187,6 +198,7 @@ def train_func(ctxt=None,
             alpha_lr=alpha_lr,
             bc_policy_lr=bc_policy_lr,
             policy_lr_decay_rate=policy_lr_decay_rate,
+            decorrelate_actions=decorrelate_actions,
         )
     elif algo=='CAC0':
         extra_algo_config = dict(
@@ -228,6 +240,7 @@ def run(log_root='.',
     if train_kwargs['algo'] in ['CAC', 'CAC0']:
         log_dir = get_log_dir_name(train_kwargs, ['policy_update_version', 'min_q_weight',
                                                   'policy_lr', 'value_lr', 'target_update_tau', 'policy_lr_decay_rate',
+                                                  'decorrelate_actions',
                                                   'policy_update_tau', 'alpha_lr', 'bc_policy_lr', 'fixed_alpha', 'kl_constraint',
                                                   'use_two_qfs', 'n_bc_steps', 'seed'])
     train_kwargs['return_mode'] = 'full'
@@ -265,6 +278,7 @@ if __name__=='__main__':
     parser.add_argument('--kl_constraint', type=float, default=0.05)
     parser.add_argument('--use_two_qfs', type=str2bool, default=True)
     parser.add_argument('--penalize_time_out', type=str2bool, default=True)
+    parser.add_argument('--decorrelate_actions', type=str2bool, default=False)
 
     train_kwargs = vars(parser.parse_args())
     run(**train_kwargs)
