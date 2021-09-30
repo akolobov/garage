@@ -126,15 +126,19 @@ class CAC(RLAlgorithm):
             policy_update_tau=None, # 1e-3,
             use_two_qfs=True,
             penalize_time_out=True,
+            policy_lr_decay_rate=0,  # per epoch
             ):
 
         policy_update_tau = policy_update_tau or target_update_tau
         alpha_lr = alpha_lr or qf_lr   # potentially a larger stepsize
         bc_policy_lr = bc_policy_lr or qf_lr  # potentially a larger stepsize
+        self._policy_lr_decay_rate = policy_lr_decay_rate
+        self._scheduler = None
 
-        r_max = np.max(replay_buffer._buffer['reward'])
-        r_min = np.min(replay_buffer._buffer['reward'])
-        reward_scale = min(1./(r_max - r_min + 1e-6), 1.)
+        # Normalize the rewards to be in [-10, 10]
+        r_max = np.abs(np.max(replay_buffer._buffer['reward']))
+        r_min = np.abs(np.min(replay_buffer._buffer['reward']))
+        reward_scale = 10./(max(r_min, r_max) + 1e-6)
 
         # CAC parameters
         self._min_q_weight = min_q_weight
@@ -299,13 +303,17 @@ class CAC(RLAlgorithm):
         ## Actior Loss
         #  Perform BC for self._n_bc_steps iterations, and then CAC.
         if self._n_updates_performed==self._n_bc_steps:
-            # reset optimizers since the objective changes
+            # Reset optimizers since the objective changes from BC to CAC.
             if self._use_automatic_entropy_tuning:
-                self._log_alpha = torch.Tensor([self._initial_log_entropy]).requires_grad_()
+                self._log_alpha = torch.Tensor([self._initial_log_entropy]).requires_grad_().to(self._log_alpha.device)
                 self._alpha_optimizer = self._optimizer([self._log_alpha],
                                                          lr=self._alpha_lr)
             self._policy_optimizer = self._optimizer(self.policy.parameters(),
                                                      lr=self._policy_lr)
+            # Use decaying learning rate for no regret
+            from torch.optim.lr_scheduler import LambdaLR
+            self._scheduler = LambdaLR(self._policy_optimizer,
+                                       lr_lambda=lambda i: 1.0/np.sqrt(1+i*self._policy_lr_decay_rate/self._gradient_steps))
 
         # Compuate entropy
         action_dists = self.policy(obs)[0]
@@ -369,6 +377,13 @@ class CAC(RLAlgorithm):
         self._policy_optimizer.zero_grad()
         policy_loss.backward()
         self._policy_optimizer.step()
+        self._scheduler.step() if self._scheduler is not None else None
+
+        # For logging
+        grad_norm = 0
+        for param in self.policy.parameters():
+            grad_norm += torch.sum(param.grad**2) if param.grad is not None else 0.
+        policy_lr = self._scheduler.get_last_lr()[0] if self._scheduler is not None else self._bc_policy_lr
 
         self._n_updates_performed += 1
 
@@ -386,7 +401,9 @@ class CAC(RLAlgorithm):
                     policy_entropy=policy_entropy,
                     alpha=alpha,
                     lower_bound=lower_bound,
-                    reward_scale=self._reward_scale)
+                    reward_scale=self._reward_scale,
+                    policy_lr=policy_lr,
+                    grad_norm=grad_norm)
 
         return log_info
 

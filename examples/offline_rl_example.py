@@ -82,10 +82,11 @@ def train_func(ctxt=None,
                lagrange_thresh=5.0,
                min_q_weight=1.0,
                # CAC parameters
-               policy_update_version=1,
+               policy_update_version=0,
                kl_constraint=0.05,
                alpha_lr=None,  # stepsize for controlling the entropy
                bc_policy_lr=None, # stepsize of bc
+               policy_lr_decay_rate=0, # decay rate of policy_lr in CAC
                policy_update_tau=None, # for the policy.
                penalize_time_out=True,
                # Compute parameters
@@ -185,6 +186,7 @@ def train_func(ctxt=None,
             penalize_time_out=penalize_time_out,
             alpha_lr=alpha_lr,
             bc_policy_lr=bc_policy_lr,
+            policy_lr_decay_rate=policy_lr_decay_rate,
         )
     elif algo=='CAC0':
         extra_algo_config = dict(
@@ -225,8 +227,8 @@ def run(log_root='.',
         log_dir = get_log_dir_name(train_kwargs, ['policy_lr', 'value_lr', 'lagrange_thresh', 'min_q_weight', 'seed'])
     if train_kwargs['algo'] in ['CAC', 'CAC0']:
         log_dir = get_log_dir_name(train_kwargs, ['policy_update_version', 'min_q_weight',
-                                                  'policy_lr', 'value_lr', 'target_update_tau', 'policy_update_tau',
-                                                  'alpha_lr', 'bc_policy_lr', 'fixed_alpha', 'kl_constraint',
+                                                  'policy_lr', 'value_lr', 'target_update_tau', 'policy_lr_decay_rate',
+                                                  'policy_update_tau', 'alpha_lr', 'bc_policy_lr', 'fixed_alpha', 'kl_constraint',
                                                   'use_two_qfs', 'n_bc_steps', 'seed'])
     train_kwargs['return_mode'] = 'full'
     full_score =  train_agent(train_func,
@@ -255,10 +257,11 @@ if __name__=='__main__':
     parser.add_argument('--value_lr', type=float, default=5e-4)
     parser.add_argument('--alpha_lr', type=float, default=None)
     parser.add_argument('--bc_policy_lr', type=float, default=None)
+    parser.add_argument('--policy_lr_decay_rate', type=float, default=0.)
     parser.add_argument('--target_update_tau', type=float, default=5e-3)
     parser.add_argument('--policy_update_tau', type=float, default=None)
     parser.add_argument('--use_deterministic_evaluation', type=str2bool, default=True)
-    parser.add_argument('--policy_update_version', type=int, default=1)
+    parser.add_argument('--policy_update_version', type=int, default=0)
     parser.add_argument('--kl_constraint', type=float, default=0.05)
     parser.add_argument('--use_two_qfs', type=str2bool, default=True)
     parser.add_argument('--penalize_time_out', type=str2bool, default=True)
