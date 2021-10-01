@@ -280,14 +280,16 @@ class CAC(RLAlgorithm):
         qf1_loss = bellman_qf1_loss + min_qf1_loss * self._min_q_weight
         qf2_loss = bellman_qf2_loss + min_qf2_loss * self._min_q_weight
 
-        self._qf1_optimizer.zero_grad()
-        qf1_loss.backward()
-        self._qf1_optimizer.step()
+        if self._policy_update_version != 3:
+            # update qfs first
+            self._qf1_optimizer.zero_grad()
+            qf1_loss.backward()
+            self._qf1_optimizer.step()
 
-        if self._use_two_qfs:
-            self._qf2_optimizer.zero_grad()
-            qf2_loss.backward()
-            self._qf2_optimizer.step()
+            if self._use_two_qfs:
+                self._qf2_optimizer.zero_grad()
+                qf2_loss.backward()
+                self._qf2_optimizer.step()
 
         ## Actior Loss
         #  Perform BC for self._n_bc_steps iterations, and then CAC.
@@ -361,11 +363,28 @@ class CAC(RLAlgorithm):
         else:
             policy_loss = - lower_bound + alpha * policy_kl
 
+        if self._policy_update_version != 3:
+            self._policy_optimizer.zero_grad()
+            policy_loss.backward()
+            self._policy_optimizer.step()
+            self._scheduler.step() if self._scheduler is not None else None
+        else:
+            # update qf and policy together
+            self._policy_optimizer.zero_grad()
+            policy_loss.backward()
+            self._policy_optimizer.step()
 
-        self._policy_optimizer.zero_grad()
-        policy_loss.backward()
-        self._policy_optimizer.step()
-        self._scheduler.step() if self._scheduler is not None else None
+            self._qf1_optimizer.zero_grad()
+            qf1_loss.backward()
+            self._qf1_optimizer.step()
+
+            if self._use_two_qfs:
+                self._qf2_optimizer.zero_grad()
+                qf2_loss.backward()
+                self._qf2_optimizer.step()
+
+            self._scheduler.step() if self._scheduler is not None else None
+
 
         # For logging
         grad_norm = 0
