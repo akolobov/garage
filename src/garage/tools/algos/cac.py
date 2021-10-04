@@ -125,7 +125,7 @@ class CAC(RLAlgorithm):
             kl_constraint=0.05,
             policy_update_tau=None, # 1e-3,
             use_two_qfs=True,
-            penalize_time_out=True,
+            penalize_time_out=False,
             policy_lr_decay_rate=0,  # per epoch
             decorrelate_actions=False,
             ):
@@ -135,8 +135,8 @@ class CAC(RLAlgorithm):
         self._n_bc_steps = n_bc_steps
         self._n_updates_performed = 0  # counter for bc
         self._use_two_qfs = use_two_qfs
-        self._penalize_time_out = penalize_time_out
-        self._policy_lr_decay_rate = policy_lr_decay_rate
+        self._penalize_time_out = penalize_time_out  # whether to penalize time out states' values
+        self._policy_lr_decay_rate = policy_lr_decay_rate  # whether to sample different actions for the value and the actor loss
         self._scheduler = None
         self._decorrelate_actions = decorrelate_actions
         self._alpha_lr =  alpha_lr or qf_lr   # potentially a larger stepsize
@@ -234,13 +234,13 @@ class CAC(RLAlgorithm):
         """
         ## Critic Loss
         obs = samples_data['observation']
+        next_obs = samples_data['next_observation']
         actions = samples_data['action']
         rewards = samples_data['reward'].flatten()
 
         # Need to distinguish between timeout and true terminal states!
         terminals = (samples_data['terminal']==StepType.TERMINAL).float().flatten()
         timeouts =  (samples_data['terminal']==StepType.TIMEOUT ).float().flatten()
-        next_obs = samples_data['next_observation']
 
         # Bellman error
         q1_pred = self._qf1(obs, actions)

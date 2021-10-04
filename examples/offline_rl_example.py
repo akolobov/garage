@@ -89,7 +89,7 @@ def train_func(ctxt=None,
                bc_policy_lr=None, # stepsize of bc
                policy_lr_decay_rate=0, # decay rate of policy_lr in CAC
                policy_update_tau=None, # for the policy.
-               penalize_time_out=True,
+               penalize_time_out=False,
                decorrelate_actions=False,
                # Compute parameters
                seed=0,
@@ -128,8 +128,8 @@ def train_func(ctxt=None,
 
     # Normalize the rewards to be in [-10, 10]
     if normalize_reward:
-        r_max = np.abs(np.max(replay_buffer._buffer['reward']))
-        r_min = np.abs(np.min(replay_buffer._buffer['reward']))
+        r_max = np.abs(np.max(dataset['rewards']))
+        r_min = np.abs(np.min(dataset['rewards']))
         reward_scale = 10./(max(r_min, r_max) + 1e-6)
     else:
         reward_scale = 1.0
@@ -240,12 +240,12 @@ def run(log_root='.',
     if train_kwargs['algo'] in ['CAC', 'CAC0']:
         log_dir = get_log_dir_name(train_kwargs, ['policy_update_version', 'min_q_weight',
                                                   'policy_lr', 'value_lr', 'target_update_tau', 'policy_lr_decay_rate',
-                                                   # decorrelate_actions', 'alpha_lr', 'bc_policy_lr',
+                                                   # 'alpha_lr', 'bc_policy_lr',
                                                    # 'policy_update_tau', 'fixed_alpha', 'kl_constraint',
                                                   'use_two_qfs', 'n_bc_steps', 'seed'])
     train_kwargs['return_mode'] = 'full'
     full_score =  train_agent(train_func,
-                    log_dir=os.path.join(log_root,'testdata','Offline'+train_kwargs['algo']+'_'+train_kwargs['env_name'], log_dir),
+                    log_dir=os.path.join(log_root,'testdata_tmp','Offline'+train_kwargs['algo']+'_'+train_kwargs['env_name'], log_dir),
                     train_kwargs=train_kwargs,
                     x_axis='Epoch')
     return {'score': np.median(full_score[-min(len(full_score),50):]),  # last 50 epochs
@@ -277,7 +277,7 @@ if __name__=='__main__':
     parser.add_argument('--policy_update_version', type=int, default=0)
     parser.add_argument('--kl_constraint', type=float, default=0.05)
     parser.add_argument('--use_two_qfs', type=str2bool, default=True)
-    parser.add_argument('--penalize_time_out', type=str2bool, default=True)
+    parser.add_argument('--penalize_time_out', type=str2bool, default=False)
     parser.add_argument('--decorrelate_actions', type=str2bool, default=False)
 
     train_kwargs = vars(parser.parse_args())
