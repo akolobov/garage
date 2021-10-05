@@ -245,7 +245,7 @@ def run(log_root='.',
                                                   'use_two_qfs', 'n_bc_steps', 'seed'])
     train_kwargs['return_mode'] = 'full'
     full_score =  train_agent(train_func,
-                    log_dir=os.path.join(log_root,'testdata_tmp','Offline'+train_kwargs['algo']+'_'+train_kwargs['env_name'], log_dir),
+                    log_dir=os.path.join(log_root,'testdata','Offline'+train_kwargs['algo']+'_'+train_kwargs['env_name'], log_dir),
                     train_kwargs=train_kwargs,
                     x_axis='Epoch')
     return {'score': np.median(full_score[-min(len(full_score),50):]),  # last 50 epochs
