@@ -83,7 +83,7 @@ def train_func(ctxt=None,
                lagrange_thresh=5.0,
                min_q_weight=1.0,
                # CAC parameters
-               policy_update_version=0,
+               version=0,
                kl_constraint=0.05,
                alpha_lr=None,  # stepsize for controlling the entropy
                bc_policy_lr=None, # stepsize of bc
@@ -91,6 +91,7 @@ def train_func(ctxt=None,
                policy_update_tau=None, # for the policy.
                penalize_time_out=False,
                decorrelate_actions=False,
+               terminal_value=0,
                # Compute parameters
                seed=0,
                n_workers=1,  # number of workers for data collection
@@ -190,7 +191,7 @@ def train_func(ctxt=None,
     elif algo=='CAC':
         extra_algo_config = dict(
             min_q_weight=min_q_weight,
-            policy_update_version=policy_update_version,
+            version=version,
             kl_constraint=kl_constraint,
             policy_update_tau=policy_update_tau,
             use_two_qfs=use_two_qfs,
@@ -199,11 +200,12 @@ def train_func(ctxt=None,
             bc_policy_lr=bc_policy_lr,
             policy_lr_decay_rate=policy_lr_decay_rate,
             decorrelate_actions=decorrelate_actions,
+            terminal_value=terminal_value
         )
     elif algo=='CAC0':
         extra_algo_config = dict(
             min_q_weight=min_q_weight,
-            policy_update_version=policy_update_version,
+            version=version,
             kl_constraint=kl_constraint,
             policy_update_tau=policy_update_tau,
             use_two_qfs=use_two_qfs,
@@ -238,9 +240,10 @@ def run(log_root='.',
     if train_kwargs['algo']=='CQL':
         log_dir = get_log_dir_name(train_kwargs, ['policy_lr', 'value_lr', 'lagrange_thresh', 'min_q_weight', 'seed'])
     if train_kwargs['algo'] in ['CAC', 'CAC0']:
-        log_dir = get_log_dir_name(train_kwargs, ['policy_update_version', 'min_q_weight',
-                                                  'policy_lr', 'value_lr', 'target_update_tau', 'policy_lr_decay_rate',
+        log_dir = get_log_dir_name(train_kwargs, ['version', 'min_q_weight',
+                                                  'policy_lr', 'value_lr', 'target_update_tau',
                                                   'penalize_time_out', 'discount',
+                                                  'terminal_value',
                                                    # 'alpha_lr', 'bc_policy_lr',
                                                    # 'policy_update_tau', 'fixed_alpha', 'kl_constraint',
                                                   'use_two_qfs', 'n_bc_steps', 'seed'])
@@ -275,11 +278,12 @@ if __name__=='__main__':
     parser.add_argument('--target_update_tau', type=float, default=5e-3)
     parser.add_argument('--policy_update_tau', type=float, default=None)
     parser.add_argument('--use_deterministic_evaluation', type=str2bool, default=True)
-    parser.add_argument('--policy_update_version', type=int, default=0)
+    parser.add_argument('--version', type=int, default=0)
     parser.add_argument('--kl_constraint', type=float, default=0.05)
     parser.add_argument('--use_two_qfs', type=str2bool, default=True)
     parser.add_argument('--penalize_time_out', type=str2bool, default=False)
     parser.add_argument('--decorrelate_actions', type=str2bool, default=False)
+    parser.add_argument('--terminal_value', type=float, default=0)
 
     train_kwargs = vars(parser.parse_args())
     run(**train_kwargs)

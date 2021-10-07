@@ -121,13 +121,14 @@ class CAC(RLAlgorithm):
             use_deterministic_evaluation=True,
             min_q_weight=1.0,
             n_bc_steps=20000,
-            policy_update_version=1,
+            version=1,
             kl_constraint=0.05,
             policy_update_tau=None, # 1e-3,
             use_two_qfs=True,
             penalize_time_out=False,
             policy_lr_decay_rate=0,  # per epoch
             decorrelate_actions=False,
+            terminal_value=0,
             ):
 
         # CAC parameters
@@ -141,11 +142,12 @@ class CAC(RLAlgorithm):
         self._decorrelate_actions = decorrelate_actions
         self._alpha_lr =  alpha_lr or qf_lr   # potentially a larger stepsize
         self._bc_policy_lr = bc_policy_lr or qf_lr  # potentially a larger stepsize
-        self._policy_update_version = policy_update_version
+        self._version = version
         self._policy_update_tau = policy_update_tau or target_update_tau
         self._target_policy = None
+        self._terminal_value = terminal_value
 
-        if self._policy_update_version==1:  # XXX Mirror Descent
+        if self._version==1:  # XXX Mirror Descent
             self._target_policy = copy.deepcopy(policy)
             if target_entropy is None:
                  target_entropy = -kl_constraint  # negative entropy
@@ -253,7 +255,7 @@ class CAC(RLAlgorithm):
             target_q_values = self._target_qf1(next_obs, new_next_actions)
             if self._use_two_qfs:
                 target_q_values = torch.min(target_q_values, self._target_qf2(next_obs, new_next_actions))  # no entropy term
-            q_target = rewards * self._reward_scale + (1.-terminals) * self._discount * target_q_values.flatten()
+            q_target = rewards * self._reward_scale + (1.-terminals) * self._discount * target_q_values.flatten() + terminals * self._terminal_value
 
         bellman_qf1_loss = F.mse_loss(q1_pred.flatten(), q_target)
         bellman_qf2_loss = F.mse_loss(q2_pred.flatten(), q_target) if self._use_two_qfs else 0.
@@ -280,7 +282,7 @@ class CAC(RLAlgorithm):
         qf1_loss = bellman_qf1_loss + min_qf1_loss * self._min_q_weight
         qf2_loss = bellman_qf2_loss + min_qf2_loss * self._min_q_weight
 
-        if self._policy_update_version != 3:
+        if self._version != 3:
             # update qfs first
             self._qf1_optimizer.zero_grad()
             qf1_loss.backward()
@@ -321,7 +323,7 @@ class CAC(RLAlgorithm):
 
         # Compute KL
         policy_kl = - policy_entropy  # to a uniform distribution up to a constant
-        if self._policy_update_version==1:  # XXX Mirror Descent
+        if self._version==1:  # XXX Mirror Descent
             with torch.no_grad():
                 target_action_dists = self._target_policy(obs)[0]
             log_target_pi_new_actions = target_action_dists.log_prob(value=new_actions, pre_tanh_value=new_actions_pre_tanh)
@@ -363,7 +365,7 @@ class CAC(RLAlgorithm):
         else:
             policy_loss = - lower_bound + alpha * policy_kl
 
-        if self._policy_update_version != 3:
+        if self._version != 3:
             self._policy_optimizer.zero_grad()
             policy_loss.backward()
             self._policy_optimizer.step()
@@ -429,7 +431,7 @@ class CAC(RLAlgorithm):
                 t_param.data.copy_(t_param.data * (1.0 - self._tau) +
                                    param.data * self._tau)
 
-        if self._policy_update_version==1:  # XXX Mirror Descent
+        if self._version==1:  # XXX Mirror Descent
             for t_param, param in zip(self._target_policy.parameters(), self.policy.parameters()):
                 t_param.data.copy_(t_param.data * (1.0 - self._policy_update_tau) +
                                    param.data * self._policy_update_tau)
@@ -455,7 +457,7 @@ class CAC(RLAlgorithm):
             self._alpha_optimizer = self._optimizer([self._log_alpha],
                                                     lr=self._alpha_lr)
 
-        if self._policy_update_version==1:  # XXX Mirror Descent
+        if self._version==1:  # XXX Mirror Descent
             self._target_policy.to(device)
 
     # Return also the target policy if needed
@@ -477,7 +479,7 @@ class CAC(RLAlgorithm):
                 self.policy, self._qf1, self._target_qf1
             ]
 
-        if self._policy_update_version==1:  # XXX Mirror Descent
+        if self._version==1:  # XXX Mirror Descent
             networks.append(self._target_policy)
 
         return networks
