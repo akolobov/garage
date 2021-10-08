@@ -129,6 +129,7 @@ class CAC(RLAlgorithm):
             policy_lr_decay_rate=0,  # per epoch
             decorrelate_actions=False,
             terminal_value=0,
+            backup_entropy=False,
             ):
 
         # CAC parameters
@@ -146,6 +147,8 @@ class CAC(RLAlgorithm):
         self._policy_update_tau = policy_update_tau or target_update_tau
         self._target_policy = None
         self._terminal_value = terminal_value
+        self._backup_entropy = backup_entropy
+
 
         if self._version==1:  # XXX Mirror Descent
             self._target_policy = copy.deepcopy(policy)
@@ -256,6 +259,11 @@ class CAC(RLAlgorithm):
             if self._use_two_qfs:
                 target_q_values = torch.min(target_q_values, self._target_qf2(next_obs, new_next_actions))  # no entropy term
             q_target = rewards * self._reward_scale + (1.-terminals) * self._discount * target_q_values.flatten() + terminals * self._terminal_value
+            if self._backup_entropy:
+                log_pi_new_next_actions = new_next_actions_dist.log_prob(
+                     value=new_next_actions, pre_tanh_value=new_next_actions_pre_tanh)
+                alpha = self._log_alpha.exp()
+                q_target = q_target - alpha * log_pi_new_next_actions.flatten()
 
         bellman_qf1_loss = F.mse_loss(q1_pred.flatten(), q_target)
         bellman_qf2_loss = F.mse_loss(q2_pred.flatten(), q_target) if self._use_two_qfs else 0.

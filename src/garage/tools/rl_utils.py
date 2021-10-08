@@ -47,6 +47,12 @@ def train_agent(train_func,
     score = wrapped_train_func(**train_kwargs)
     return score
 
+def load_algo(path, itr='last'):
+    from garage.experiment import Snapshotter
+    snapshotter = Snapshotter()
+    data = snapshotter.load(path, itr=itr)
+    return data['algo']
+
 def setup_gpu(algo, gpu_id=-1):
     if gpu_id>=0:
         set_gpu_mode(torch.cuda.is_available(), gpu_id=gpu_id)

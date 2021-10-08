@@ -9,7 +9,7 @@ from garage.torch.algos import SAC
 from garage.tools.algos import CQL, CAC, CAC0
 from garage.torch.policies import TanhGaussianMLPPolicy
 from garage.torch.q_functions import ContinuousMLPQFunction
-from garage.tools.rl_utils import train_agent, get_sampler, setup_gpu, get_algo, get_log_dir_name
+from garage.tools.rl_utils import train_agent, get_sampler, setup_gpu, get_algo, get_log_dir_name, load_algo
 
 from garage.tools.trainer import Trainer
 from garage import StepType
@@ -54,6 +54,9 @@ def train_func(ctxt=None,
                algo,
                # Environment parameters
                env_name,
+               # Evaluation mode
+               evaluation_mode=False,
+               policy_path=None,
                # Trainer parameters
                n_epochs=3000,  # number of training epochs
                batch_size=0,  # number of samples collected per update
@@ -157,6 +160,14 @@ def train_func(ctxt=None,
                 hidden_nonlinearity=value_hidden_nonlinearity,
                 output_nonlinearity=None)
 
+    """ Overwrite the parameters for setting up the policy evaluation mode. """
+    if evaluation_mode:
+        assert policy_path is not None
+        policy_path, itr = policy_path.split(':')
+        policy = load_algo(policy_path, itr=itr).policy
+        policy_lr = 0
+        n_epochs = int(n_bc_steps/max(1,n_grad_steps))
+
     sampler = get_sampler(policy, env, n_workers=n_workers)
 
     Algo = globals()[algo]
@@ -202,14 +213,6 @@ def train_func(ctxt=None,
             decorrelate_actions=decorrelate_actions,
             terminal_value=terminal_value
         )
-    elif algo=='CAC0':
-        extra_algo_config = dict(
-            min_q_weight=min_q_weight,
-            version=version,
-            kl_constraint=kl_constraint,
-            policy_update_tau=policy_update_tau,
-            use_two_qfs=use_two_qfs,
-        )
 
     algo_config.update(extra_algo_config)
 
@@ -235,25 +238,62 @@ def train_func(ctxt=None,
 
 def run(log_root='.',
         torch_n_threads=2,
+        snapshot_frequency=0,
         **train_kwargs):
     torch.set_num_threads(torch_n_threads)
     if train_kwargs['algo']=='CQL':
         log_dir = get_log_dir_name(train_kwargs, ['policy_lr', 'value_lr', 'lagrange_thresh', 'min_q_weight', 'seed'])
-    if train_kwargs['algo'] in ['CAC', 'CAC0']:
-        log_dir = get_log_dir_name(train_kwargs, ['version', 'min_q_weight',
+    if train_kwargs['algo']=='CAC':
+        log_dir = get_log_dir_name(train_kwargs, ['version', 'min_q_weight', 'discount',
                                                   'policy_lr', 'value_lr', 'target_update_tau',
-                                                  'penalize_time_out', 'discount',
-                                                  'terminal_value',
+                                                   #'terminal_value', 'penalize_time_out',
                                                    # 'alpha_lr', 'bc_policy_lr',
                                                    # 'policy_update_tau', 'fixed_alpha', 'kl_constraint',
                                                   'use_two_qfs', 'n_bc_steps', 'seed'])
     train_kwargs['return_mode'] = 'full'
+
+    # Offline training
+    log_dir_path = os.path.join(log_root,'testdata','Offline'+train_kwargs['algo']+'_'+train_kwargs['env_name'], log_dir)
     full_score =  train_agent(train_func,
-                    log_dir=os.path.join(log_root,'testdata','Offline'+train_kwargs['algo']+'_'+train_kwargs['env_name'], log_dir),
+                    log_dir=log_dir_path,
                     train_kwargs=train_kwargs,
+                    snapshot_frequency=snapshot_frequency,
                     x_axis='Epoch')
-    return {'score': np.median(full_score[-min(len(full_score),50):]),  # last 50 epochs
-            'mean': np.mean(full_score)}
+
+    # Extra policy evaluation
+    if snapshot_frequency>0:
+        eval_kwargs = train_kwargs.copy()
+        eval_kwargs['evaluation_mode'] = True
+        n_trainin_epochs = len(full_score)
+        min_qf_losses = []
+        policy_returns = []
+        for n in range(0, n_trainin_epochs, snapshot_frequency):
+            eval_kwargs['policy_path'] = log_dir_path+':'+str(n)
+            log_dir_path_eval = os.path.join(log_dir_path, 'policy_'+str(n))
+            full_score_eval =  train_agent(train_func,
+                            log_dir=log_dir_path_eval,
+                            train_kwargs=eval_kwargs,
+                            snapshot_frequency=0,  # don't need extra logging
+                            x_axis='Epoch')
+
+            from garage.tools.utils import read_attr_from_csv
+            min_qf1_loss = read_attr_from_csv(os.path.join(log_dir_path_eval,'progress.csv'), 'Algorithm/min_qf1_loss')
+            min_qf2_loss = read_attr_from_csv(os.path.join(log_dir_path_eval,'progress.csv'), 'Algorithm/min_qf2_loss')
+            min_qf_losses.append(min(min_qf1_loss[-1], min_qf2_loss[-1]))
+            policy_returns.append(np.mean(full_score_eval))
+
+        score = policy_returns[np.argmax(min_qf_losses)]
+        best_score = max(policy_returns)
+        print('Estimated best score', score, '\n', 'True best score', best_score)
+        return {'score': score,
+                'best_score': best_score}
+
+    else:
+        window = 50
+        score = np.median(full_score[-min(len(full_score),window):])
+        print('Median of performance of last {} epochs'.format(window), score)
+        return {'score': score,  # last 50 epochs
+                'mean': np.mean(full_score)}
 
 if __name__=='__main__':
     import argparse
@@ -261,6 +301,7 @@ if __name__=='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-a', '--algo', type=str, default='CQL')
     parser.add_argument('-e', '---env_name',  type=str, default='hopper-medium-v0')
+    parser.add_argument('--n_epochs', type=int, default=3000)
     parser.add_argument('--discount', type=float, default=0.99)
     parser.add_argument('--gpu_id', type=int, default=-1)  # use cpu by default
     parser.add_argument('--n_workers', type=int, default=1)
