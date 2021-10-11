@@ -166,6 +166,7 @@ def train_func(ctxt=None,
         policy_path, itr = policy_path.split(':')
         policy = load_algo(policy_path, itr=itr).policy
         policy_lr = 0
+        n_bc_steps = 0
         n_epochs = int(n_bc_steps/max(1,n_grad_steps))
 
     sampler = get_sampler(policy, env, n_workers=n_workers)
