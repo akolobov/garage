@@ -282,6 +282,7 @@ class CAC(RLAlgorithm):
         qf2_loss = bellman_qf2_loss * beta + min_qf2_loss
 
         # Autotune the regularization constant
+        beta_loss = 0
         if self._beta_optimizer is not None:
             beta_loss = - self._log_beta * ((bellman_qf1_loss+bellman_qf2_loss).detach()/2 - self._target_bellman_error)
             self._beta_optimizer.zero_grad()

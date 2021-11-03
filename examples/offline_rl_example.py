@@ -306,7 +306,7 @@ if __name__=='__main__':
     parser.add_argument('-a', '--algo', type=str, default='CQL')
     parser.add_argument('-e', '---env_name',  type=str, default='hopper-medium-v0')
     parser.add_argument('--n_epochs', type=int, default=3000)
-    parser.add_argument('--discount', type=float, default=0.99)
+    parser.add_argument('--discount', type=float, default=0.95)
     parser.add_argument('--gpu_id', type=int, default=-1)  # use cpu by default
     parser.add_argument('--n_workers', type=int, default=1)
     parser.add_argument('--force_cpu_data_collection', type=str2bool, default=True)
