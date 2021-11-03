@@ -1,0 +1,44 @@
+# # Mujoco exps
+# - halfcheetah-random-v0
+# - halfcheetah-medium-v0
+# - halfcheetah-expert-v0
+# - halfcheetah-medium-replay-v0
+# - halfcheetah-medium-expert-v0
+
+# - walker2d-random-v0
+# - walker2d-medium-v0
+# - walker2d-expert-v0
+# - walker2d-medium-replay-v0
+# - walker2d-medium-expert-v0
+
+# - hopper-random-v0
+# - hopper-medium-v0
+# - hopper-expert-v0
+# - hopper-medium-replay-v0
+# - hopper-medium-expert-v0
+
+# # - ant-random-v0
+# # - ant-medium-v0
+# # - ant-expert-v0
+# # - ant-medium-replay-v0
+# # - ant-medium-expert-v0
+
+
+# ## Panda Kitchen
+- kitchen-complete-v0
+- kitchen-partial-v0
+# - kitchen-mixed-v0
+
+# ## Adroit v1 envs
+# - pen-human-v1
+# - pen-cloned-v1
+# - pen-expert-v1
+# - hammer-human-v1
+# - hammer-cloned-v1
+# - hammer-expert-v1
+# - relocate-human-v1
+# - relocate-cloned-v1
+# - relocate-expert-v1
+# - door-human-v1
+# - door-cloned-v1
+# - door-expert-v1

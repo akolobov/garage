@@ -69,26 +69,6 @@ class CAC(RLAlgorithm):
             episodes. If None, a copy of the train env is used.
         use_deterministic_evaluation (bool): True if the trained policy
             should be evaluated deterministically.
-
-        [https://github.com/aviralkumar2907/CQL/blob/master/d4rl/rlkit/torch/sac/cql.py]
-        temp (float): Temperature to use when exponentiating Q-values for
-            CQL's objective
-        min_q_weight (float): Default is 1. Used for normalizing Q-values when
-            computing CQL objective.
-        max_q_backup (bool): If True, we sample 10 actions from next state and
-            take max Q as the approximation of max_a' Q(s',a')
-        deterministic_backup (bool): True by default, If True this subtracts
-            the alpha*log pi factor that SAC also subtracts from critic
-            Q-values to construct regression targets
-        logsumexp_continuous (bool): If set to True, then we approximate
-            log sum_a exp(Q(s,a)) by randomly sampling num_random actions.
-            Needed for continuous action tasks.
-        num_random (int): How many actions to sample to approximate
-            log-sum-exp for continuous action tasks.
-        with_lagrange (bool): Whether to tune CQL's alpha using
-            dual gradient descent (requires lagrange_thresh).
-        lagrange_thresh (float): tau defined in Eq30 of Appendix F. If expected Q gap
-            is larger than tau, CQL's alpha is automatically increased.
     """
 
     def __init__(
@@ -119,7 +99,7 @@ class CAC(RLAlgorithm):
             num_evaluation_episodes=10,
             eval_env=None,
             use_deterministic_evaluation=True,
-            min_q_weight=1.0,
+            beta=1.0,  # the regularization coefficient in front of the Bellman error
             n_bc_steps=20000,
             version=1,
             kl_constraint=0.05,
@@ -132,24 +112,34 @@ class CAC(RLAlgorithm):
             backup_entropy=False,
             ):
 
-        # CAC parameters
-        self._min_q_weight = min_q_weight
+        ## CAC parameters
         self._n_bc_steps = n_bc_steps
         self._n_updates_performed = 0  # counter for bc
         self._use_two_qfs = use_two_qfs
         self._penalize_time_out = penalize_time_out  # whether to penalize time out states' values
         self._policy_lr_decay_rate = policy_lr_decay_rate  # whether to sample different actions for the value and the actor loss
-        self._scheduler = None
+        self._scheduler = None  # scheduler of the policy lr
         self._decorrelate_actions = decorrelate_actions
         self._alpha_lr =  alpha_lr or qf_lr   # potentially a larger stepsize
         self._bc_policy_lr = bc_policy_lr or qf_lr  # potentially a larger stepsize
-        self._version = version
         self._policy_update_tau = policy_update_tau or target_update_tau
+        self._terminal_value = terminal_value  # terminal value of of the absorbing state
+        self._backup_entropy = backup_entropy  # whether to backup entropy in the q objective
+
+        policy_lr = policy_lr or qf_lr  # use shared lr if not provided.
+
+        # regularization constant on the Bellman error
+        if beta>=0:  # use fixed reg coeff
+            self._log_beta = torch.Tensor([np.log(beta)])
+            self._beta_optimizer = self._bellman_target = None
+        else:
+            self._target_bellman_error = -beta
+            self._log_beta = torch.Tensor([0]).requires_grad_()
+            self._beta_optimizer = optimizer([self._log_beta],
+                                              lr=self._alpha_lr)
+
+        self._version = version
         self._target_policy = None
-        self._terminal_value = terminal_value
-        self._backup_entropy = backup_entropy
-
-
         if self._version==1:  # XXX Mirror Descent
             self._target_policy = copy.deepcopy(policy)
             if target_entropy is None:
@@ -287,8 +277,16 @@ class CAC(RLAlgorithm):
                 q2_new_next_actions = self._qf2(next_obs, new_next_actions.detach())
                 min_qf2_loss += (q2_new_next_actions.flatten()*timeouts).mean()
 
-        qf1_loss = bellman_qf1_loss + min_qf1_loss * self._min_q_weight
-        qf2_loss = bellman_qf2_loss + min_qf2_loss * self._min_q_weight
+        beta = self._log_beta.exp().detach()
+        qf1_loss = bellman_qf1_loss * beta + min_qf1_loss
+        qf2_loss = bellman_qf2_loss * beta + min_qf2_loss
+
+        # Autotune the regularization constant
+        if self._beta_optimizer is not None:
+            beta_loss = - self._log_beta * ((bellman_qf1_loss+bellman_qf2_loss).detach()/2 - self._target_bellman_error)
+            self._beta_optimizer.zero_grad()
+            beta_loss.backward()
+            self._beta_optimizer.step()
 
         if self._version != 3:
             # update qfs first
@@ -402,6 +400,9 @@ class CAC(RLAlgorithm):
             grad_norm += torch.sum(param.grad**2) if param.grad is not None else 0.
         policy_lr = self._scheduler.get_last_lr()[0] if self._scheduler is not None else self._bc_policy_lr
 
+        q_new_actions_mean = (q1_new_actions+q2_new_actions).mean()/2
+        q_pred_mean = (q1_pred+q2_pred).mean()/2
+
         self._n_updates_performed += 1
 
         log_info = dict(
@@ -412,7 +413,8 @@ class CAC(RLAlgorithm):
                     min_qf1_loss=min_qf1_loss,
                     bellman_qf2_loss=bellman_qf2_loss,
                     min_qf2_loss=min_qf2_loss,
-                    min_q_weight=self._min_q_weight,
+                    beta=beta,
+                    beta_loss=beta_loss,
                     alpha_loss=alpha_loss,
                     policy_kl=policy_kl,
                     policy_entropy=policy_entropy,
@@ -420,7 +422,10 @@ class CAC(RLAlgorithm):
                     lower_bound=lower_bound,
                     reward_scale=self._reward_scale,
                     policy_lr=policy_lr,
-                    grad_norm=grad_norm)
+                    grad_norm=grad_norm,
+                    q_new_actions_mean=q_new_actions_mean,
+                    q_pred_mean=q_pred_mean,
+                    )
 
         return log_info
 
@@ -464,6 +469,12 @@ class CAC(RLAlgorithm):
                                             ]).to(device).requires_grad_()
             self._alpha_optimizer = self._optimizer([self._log_alpha],
                                                     lr=self._alpha_lr)
+        if self._beta_optimizer is None:
+            self._log_beta = torch.Tensor([self._log_beta]).to(device)
+        else:
+            self._log_beta = torch.Tensor([self._log_beta]).to(device).requires_grad_()
+            self._beta_optimizer = optimizer([self._log_beta], lr=self._alpha_lr)
+
 
         if self._version==1:  # XXX Mirror Descent
             self._target_policy.to(device)

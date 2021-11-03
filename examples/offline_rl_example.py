@@ -30,6 +30,8 @@ def load_d4rl_data_as_buffer(dataset, replay_buffer):
 
     # Make sure timeouts are not true terminal
     assert np.sum(timeout*true_terminals)<=0
+    print('{} True terminals and {} Timeouts'.format(np.sum(true_terminals), np.sum(timeout)))
+
 
     replay_buffer.add_path(
         dict(observation=dataset['observations'],
@@ -86,6 +88,7 @@ def train_func(ctxt=None,
                lagrange_thresh=5.0,
                min_q_weight=1.0,
                # CAC parameters
+               beta=1.0,
                version=0,
                kl_constraint=0.05,
                alpha_lr=None,  # stepsize for controlling the entropy
@@ -202,7 +205,7 @@ def train_func(ctxt=None,
         )
     elif algo=='CAC':
         extra_algo_config = dict(
-            min_q_weight=min_q_weight,
+            beta=beta,
             version=version,
             kl_constraint=kl_constraint,
             policy_update_tau=policy_update_tau,
@@ -245,7 +248,7 @@ def run(log_root='.',
     if train_kwargs['algo']=='CQL':
         log_dir = get_log_dir_name(train_kwargs, ['policy_lr', 'value_lr', 'lagrange_thresh', 'min_q_weight', 'seed'])
     if train_kwargs['algo']=='CAC':
-        log_dir = get_log_dir_name(train_kwargs, ['version', 'min_q_weight', 'discount',
+        log_dir = get_log_dir_name(train_kwargs, ['version', 'beta', 'discount',
                                                   'policy_lr', 'value_lr', 'target_update_tau',
                                                    #'terminal_value', 'penalize_time_out',
                                                    # 'alpha_lr', 'bc_policy_lr',
@@ -311,7 +314,7 @@ if __name__=='__main__':
     parser.add_argument('--lagrange_thresh', type=float, default=5.0)
     parser.add_argument('--n_bc_steps', type=int, default=20000)  # 40000
     parser.add_argument('--fixed_alpha', type=float, default=None)
-    parser.add_argument('--min_q_weight', type=float, default=1.0)
+    parser.add_argument('--beta', type=float, default=1.0)
     parser.add_argument('--policy_lr', type=float, default=5e-5)
     parser.add_argument('--value_lr', type=float, default=5e-4)
     parser.add_argument('--alpha_lr', type=float, default=None)
