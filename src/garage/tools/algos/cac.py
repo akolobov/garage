@@ -277,17 +277,22 @@ class CAC(RLAlgorithm):
                 q2_new_next_actions = self._qf2(next_obs, new_next_actions.detach())
                 min_qf2_loss += (q2_new_next_actions.flatten()*timeouts).mean()
 
-        # Autotune the regularization constant
         beta_loss = 0
-        if self._beta_optimizer is not None:
-            beta_loss = - self._log_beta * ((bellman_qf1_loss+bellman_qf2_loss).detach()/2 - self._target_bellman_error)
-            self._beta_optimizer.zero_grad()
-            beta_loss.backward()
-            self._beta_optimizer.step()
+        if self._n_updates_performed>=self._n_bc_steps:
+            # Autotune the regularization constant
+            if self._beta_optimizer is not None:
+                beta_loss = - self._log_beta * ((bellman_qf1_loss+bellman_qf2_loss).detach()/2 - self._target_bellman_error)
+                self._beta_optimizer.zero_grad()
+                beta_loss.backward()
+                self._beta_optimizer.step()
+            beta = self._log_beta.exp().detach()
+            qf1_loss = bellman_qf1_loss * beta + min_qf1_loss
+            qf2_loss = bellman_qf2_loss * beta + min_qf2_loss
+        else:  # for warm start
+            beta = self._log_beta.exp().detach()  # for logging
+            qf1_loss = bellman_qf1_loss
+            qf2_loss = bellman_qf2_loss
 
-        beta = self._log_beta.exp().detach()
-        qf1_loss = bellman_qf1_loss * beta + min_qf1_loss
-        qf2_loss = bellman_qf2_loss * beta + min_qf2_loss
 
         if self._version != 3:
             # update qfs first
@@ -312,7 +317,6 @@ class CAC(RLAlgorithm):
             from torch.optim.lr_scheduler import LambdaLR
             self._scheduler = LambdaLR(self._policy_optimizer,
                                        lr_lambda=lambda i: 1.0/np.sqrt(1+i*self._policy_lr_decay_rate/self._gradient_steps))
-            import pdb; pdb.set_trace()
 
         # Compuate entropy
         if self._decorrelate_actions:
