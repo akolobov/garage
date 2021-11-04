@@ -120,13 +120,13 @@ class CAC(RLAlgorithm):
         self._policy_lr_decay_rate = policy_lr_decay_rate  # whether to sample different actions for the value and the actor loss
         self._scheduler = None  # scheduler of the policy lr
         self._decorrelate_actions = decorrelate_actions
-        self._alpha_lr =  alpha_lr or qf_lr   # potentially a larger stepsize
-        self._bc_policy_lr = bc_policy_lr or qf_lr  # potentially a larger stepsize
+        self._alpha_lr =  qf_lr if alpha_lr is None else alpha_lr  # potentially a larger stepsize
+        self._bc_policy_lr = qf_lr if bc_policy_lr is None else bc_policy_lr   # potentially a larger stepsize
         self._policy_update_tau = policy_update_tau or target_update_tau
         self._terminal_value = terminal_value  # terminal value of of the absorbing state
         self._backup_entropy = backup_entropy  # whether to backup entropy in the q objective
 
-        policy_lr = policy_lr or qf_lr  # use shared lr if not provided.
+        policy_lr = qf_lr if policy_lr is None else policy_lr # use shared lr if not provided.
 
         # regularization constant on the Bellman error
         if beta>=0:  # use fixed reg coeff
@@ -277,10 +277,6 @@ class CAC(RLAlgorithm):
                 q2_new_next_actions = self._qf2(next_obs, new_next_actions.detach())
                 min_qf2_loss += (q2_new_next_actions.flatten()*timeouts).mean()
 
-        beta = self._log_beta.exp().detach()
-        qf1_loss = bellman_qf1_loss * beta + min_qf1_loss
-        qf2_loss = bellman_qf2_loss * beta + min_qf2_loss
-
         # Autotune the regularization constant
         beta_loss = 0
         if self._beta_optimizer is not None:
@@ -288,6 +284,10 @@ class CAC(RLAlgorithm):
             self._beta_optimizer.zero_grad()
             beta_loss.backward()
             self._beta_optimizer.step()
+
+        beta = self._log_beta.exp().detach()
+        qf1_loss = bellman_qf1_loss * beta + min_qf1_loss
+        qf2_loss = bellman_qf2_loss * beta + min_qf2_loss
 
         if self._version != 3:
             # update qfs first
@@ -312,6 +312,7 @@ class CAC(RLAlgorithm):
             from torch.optim.lr_scheduler import LambdaLR
             self._scheduler = LambdaLR(self._policy_optimizer,
                                        lr_lambda=lambda i: 1.0/np.sqrt(1+i*self._policy_lr_decay_rate/self._gradient_steps))
+            import pdb; pdb.set_trace()
 
         # Compuate entropy
         if self._decorrelate_actions:
