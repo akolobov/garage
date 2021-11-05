@@ -98,6 +98,7 @@ def train_func(ctxt=None,
                penalize_time_out=False,
                decorrelate_actions=False,
                terminal_value=0,
+               q_weight_decay=0.,
                # Compute parameters
                seed=0,
                n_workers=1,  # number of workers for data collection
@@ -215,7 +216,8 @@ def train_func(ctxt=None,
             bc_policy_lr=bc_policy_lr,
             policy_lr_decay_rate=policy_lr_decay_rate,
             decorrelate_actions=decorrelate_actions,
-            terminal_value=terminal_value
+            terminal_value=terminal_value,
+            q_weight_decay=q_weight_decay,
         )
 
     algo_config.update(extra_algo_config)

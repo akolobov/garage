@@ -110,6 +110,7 @@ class CAC(RLAlgorithm):
             decorrelate_actions=False,
             terminal_value=0,
             backup_entropy=False,
+            q_weight_decay=0,
             ):
 
         ## CAC parameters
@@ -125,7 +126,7 @@ class CAC(RLAlgorithm):
         self._policy_update_tau = policy_update_tau or target_update_tau
         self._terminal_value = terminal_value  # terminal value of of the absorbing state
         self._backup_entropy = backup_entropy  # whether to backup entropy in the q objective
-
+        self._q_weight_decay = q_weight_decay  # weight decay coefficient on the q network
         policy_lr = qf_lr if policy_lr is None else policy_lr # use shared lr if not provided.
 
         # regularization constant on the Bellman error
@@ -183,9 +184,11 @@ class CAC(RLAlgorithm):
         self._policy_optimizer = self._optimizer(self.policy.parameters(),
                                                  lr=self._bc_policy_lr) #  lr=self._policy_lr)
         self._qf1_optimizer = self._optimizer(self._qf1.parameters(),
-                                              lr=self._qf_lr)
+                                              lr=self._qf_lr,
+                                              weight_decay= self._q_weight_decay)
         self._qf2_optimizer = self._optimizer(self._qf2.parameters(),
-                                              lr=self._qf_lr)
+                                              lr=self._qf_lr,
+                                              weight_decay= self._q_weight_decay)
         # automatic entropy coefficient tuning
         self._use_automatic_entropy_tuning = fixed_alpha is None
         self._fixed_alpha = fixed_alpha
