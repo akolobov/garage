@@ -133,8 +133,8 @@ class CAC(RLAlgorithm):
             self._log_beta = torch.Tensor([np.log(beta)])
             self._beta_optimizer = self._bellman_target = None
         else:
-            self._target_bellman_error = -beta
-            self._log_beta = torch.Tensor([0]).requires_grad_()
+            self._target_bellman_error = - beta
+            self._log_beta = torch.Tensor([0]).requires_grad_()  # i.e. beta=1
             self._beta_optimizer = optimizer([self._log_beta],
                                               lr=self._alpha_lr)
 
@@ -286,8 +286,13 @@ class CAC(RLAlgorithm):
                 beta_loss.backward()
                 self._beta_optimizer.step()
             beta = self._log_beta.exp().detach()
-            qf1_loss = bellman_qf1_loss * beta + min_qf1_loss
-            qf2_loss = bellman_qf2_loss * beta + min_qf2_loss
+            if beta<=1:
+                qf1_loss = bellman_qf1_loss * beta + min_qf1_loss
+                qf2_loss = bellman_qf2_loss * beta + min_qf2_loss
+            else:
+                qf1_loss = bellman_qf1_loss + min_qf1_loss/beta
+                qf2_loss = bellman_qf2_loss + min_qf2_loss/beta
+
         else:  # for warm start
             beta = self._log_beta.exp().detach()  # for logging
             qf1_loss = bellman_qf1_loss
