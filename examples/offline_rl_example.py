@@ -250,12 +250,14 @@ def run(log_root='.',
     if train_kwargs['algo']=='CQL':
         log_dir = get_log_dir_name(train_kwargs, ['policy_lr', 'value_lr', 'lagrange_thresh', 'min_q_weight', 'seed'])
     if train_kwargs['algo']=='CAC':
-        log_dir = get_log_dir_name(train_kwargs, ['version', 'beta', 'discount',
+        log_dir = get_log_dir_name(train_kwargs, ['version',
+                                                  'beta', 'discount', 'q_weight_decay',
                                                   'policy_lr', 'value_lr', 'target_update_tau',
                                                    #'terminal_value', 'penalize_time_out',
                                                    # 'alpha_lr', 'bc_policy_lr',
                                                    # 'policy_update_tau', 'fixed_alpha', 'kl_constraint',
-                                                  'use_two_qfs', 'n_bc_steps', 'seed'])
+                                                   # 'use_two_qfs',
+                                                  'n_bc_steps', 'seed'])
     train_kwargs['return_mode'] = 'full'
 
     # Offline training

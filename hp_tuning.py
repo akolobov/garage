@@ -53,14 +53,13 @@ def run(n_epochs=3000,
 
     # Experiments on androit and kitchen
     hps_dict = dict(
-            policy_lr=[0e-5],
-            value_lr=[5e-4, 5e-5], #, 5e-6],
-            target_update_tau=[5e-3, 5e-4], #, 5e-5], #[5e-3],
-            beta = [0.001, 0.01, 1, 10, 100],
-            policy_lr_decay_rate=[0],
-            penalize_time_out=[False],
-            discount=[0.5, 0.9, 0.99],
+            policy_lr=[0e-5, 1e-5],
+            value_lr=[5e-4, 5e-5],
+            target_update_tau=[5e-3], #, 5e-5], #[5e-3],
+            beta = [-1000, -500, -100, -10, 0, 0.01, 1, 100, 1000],
+            discount=[0., 0.5, 0.9,],
             version=[0],
+            q_weight_decay=[0.01],
     )
 
     if env_yaml is not None:
@@ -93,7 +92,7 @@ def run(n_epochs=3000,
         minibatch_size=256,  # optimization/replaybuffer minibatch size
         # n_grad_steps=1000,  # number of gradient updates per epoch
         # steps_per_epoch=1,  # number of internal epochs steps per epoch
-        n_bc_steps=20000,
+        n_bc_steps=40000,
         fixed_alpha=None,
         use_two_qfs=True,
         use_deterministic_evaluation=True,
@@ -103,7 +102,7 @@ def run(n_epochs=3000,
         min_q_weight=1.0,
         # CAC parameters
         beta=1.0,
-        version=1,
+        version=0,
         kl_constraint=0.05,
         policy_update_tau=None, # for the policy.
         # Compute parameters
