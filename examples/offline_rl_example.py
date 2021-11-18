@@ -223,6 +223,7 @@ def train_func(ctxt=None,
             decorrelate_actions=decorrelate_actions,
             terminal_value=terminal_value,
             q_weight_decay=q_weight_decay,
+            gate_pessimism=gate_pessimism,
         )
 
     algo_config.update(extra_algo_config)
