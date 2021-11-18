@@ -20,10 +20,10 @@ log_root ='../results'
 
 method = 'rl_nexus.garage.examples.offline_rl_example.run'
 
-def run(n_epochs=3000,
+def run(n_epochs=2000,
         hp_tuning_mode='grid',
         n_seeds_per_hp=3,
-        env_name='hopper-medium-v0',  # or a list
+        env_name='hopper-medium-v2',  # or a list
         env_yaml=None):
 
     # # Experiments on many gym envs
@@ -53,13 +53,11 @@ def run(n_epochs=3000,
 
     # Experiments on androit and kitchen
     hps_dict = dict(
-            policy_lr=[0e-5, 1e-5],
-            value_lr=[5e-4, 5e-5],
-            target_update_tau=[5e-3], #, 5e-5], #[5e-3],
-            beta = [-1000, -500, -100, -10, 0, 0.01, 1, 100, 1000],
-            discount=[0., 0.5, 0.9,],
-            version=[0],
-            q_weight_decay=[0.01],
+            policy_lr=[5e-4, 5e-5, 5e-6],
+            value_lr=[5e-4],
+            target_update_tau=[5e-3],
+            beta = [-0.1, -1, -10, -100],
+            discount=[0.9, 0.98],
     )
 
     if env_yaml is not None:
@@ -90,7 +88,7 @@ def run(n_epochs=3000,
         value_lr=5e-4,  # optimization stepsize for value regression
         target_update_tau=5e-3, # for target network
         minibatch_size=256,  # optimization/replaybuffer minibatch size
-        # n_grad_steps=1000,  # number of gradient updates per epoch
+        n_grad_steps=2000,  # number of gradient updates per epoch
         # steps_per_epoch=1,  # number of internal epochs steps per epoch
         n_bc_steps=40000,
         fixed_alpha=None,
@@ -102,9 +100,9 @@ def run(n_epochs=3000,
         min_q_weight=1.0,
         # CAC parameters
         beta=1.0,
-        version=0,
-        kl_constraint=0.05,
-        policy_update_tau=None, # for the policy.
+        # version=0,
+        # kl_constraint=0.05,
+        # policy_update_tau=None, # for the policy.
         # Compute parameters
         seed='randint',
         n_workers=1,  # number of workers for data collection
@@ -155,10 +153,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # parser.add_argument('--version', type=int, default=0)
-    parser.add_argument('--n_epochs', type=int, default=3000)
+    parser.add_argument('--n_epochs', type=int, default=2000)
     parser.add_argument('--hp_tuning_mode', type=str, default='grid')
     parser.add_argument('--n_seeds_per_hp', type=int, default=3)
-    parser.add_argument('--env_name', type=str, nargs='+', default='hopper-medium-v0')
+    parser.add_argument('--env_name', type=str, nargs='+', default='hopper-medium-v2')
     parser.add_argument('--env_yaml', type=str, default=None)
 
     run(**vars(parser.parse_args()))
