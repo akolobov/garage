@@ -88,30 +88,43 @@ class CAC(RLAlgorithm):
             discount=0.99,
             buffer_batch_size=64,
             min_buffer_size=int(1e4),
-            target_update_tau=5e-3,# 1e-2
-            policy_lr=5e-5,  # 1e-3
-            qf_lr=5e-4,  # 1e-3
-            alpha_lr=None,
-            bc_policy_lr=None,
+            target_update_tau=5e-3,
+            policy_lr=5e-5,
+            qf_lr=5e-4,
             reward_scale=1.0,
             optimizer=torch.optim.Adam,
             steps_per_epoch=1,
             num_evaluation_episodes=10,
             eval_env=None,
             use_deterministic_evaluation=True,
+            # CAC parameters
+            bc_policy_lr=None,  # stepsize of behavior cloning
+            alpha_lr=None,  # stepsize of the most inner optimization
             beta=1.0,  # the regularization coefficient in front of the Bellman error
             n_bc_steps=20000,
-            version=1,
+            terminal_value=0,
+            gate_pessimism=True,
+            use_two_qfs=True,
+            # deprecated arguments
+            version=0,
             kl_constraint=0.05,
             policy_update_tau=None, # 1e-3,
-            use_two_qfs=True,
             penalize_time_out=False,
             policy_lr_decay_rate=0,  # per epoch
             decorrelate_actions=False,
-            terminal_value=0,
             backup_entropy=False,
             q_weight_decay=0,
             ):
+
+
+        # Deprecated arguments
+        assert version==0
+        assert np.isclose(q_weight_decay, 0)
+        assert not backup_entropy
+        assert not decorrelate_actions
+        assert np.isclose(policy_lr_decay_rate, 0.)
+        assert not penalize_time_out
+        assert policy_update_tau is None
 
         ## CAC parameters
         self._n_bc_steps = n_bc_steps
@@ -121,7 +134,7 @@ class CAC(RLAlgorithm):
         self._policy_lr_decay_rate = policy_lr_decay_rate  # whether to sample different actions for the value and the actor loss
         self._scheduler = None  # scheduler of the policy lr
         self._decorrelate_actions = decorrelate_actions
-        self._alpha_lr =  qf_lr if alpha_lr is None else alpha_lr  # potentially a larger stepsize
+        self._alpha_lr =  qf_lr if alpha_lr is None else alpha_lr  # potentially a larger stepsize, for the most inner optimization.
         self._bc_policy_lr = qf_lr if bc_policy_lr is None else bc_policy_lr   # potentially a larger stepsize
         self._policy_update_tau = policy_update_tau or target_update_tau
         self._terminal_value = terminal_value  # terminal value of of the absorbing state
@@ -129,15 +142,23 @@ class CAC(RLAlgorithm):
         self._q_weight_decay = q_weight_decay  # weight decay coefficient on the q network
         policy_lr = qf_lr if policy_lr is None else policy_lr # use shared lr if not provided.
 
-        # regularization constant on the Bellman error
+        # Regularization constant on the Bellman error
         if beta>=0:  # use fixed reg coeff
             self._log_beta = torch.Tensor([np.log(beta)])
             self._beta_optimizer = self._bellman_target = None
         else:
-            self._target_bellman_error = - beta
+            self._target_bellman_error = -beta
             self._log_beta = torch.Tensor([0]).requires_grad_()  # i.e. beta=1
-            self._beta_optimizer = optimizer([self._log_beta],
-                                              lr=self._alpha_lr)
+            self._beta_optimizer = optimizer([self._log_beta], lr=self._alpha_lr)
+
+        # Set a gate for pessimism
+        self.gate_pessimism = gate_pessimism
+        if self.gate_pessimism:
+            self._gate = torch.Tensor([1]).requires_grad_()
+            self._gate_optimizer = optimizer([self._gate], lr=self._alpha_lr)
+        else:
+            self._gate = torch.Tensor([1])
+            self._gate_optimizer = None
 
         self._version = version
         self._target_policy = None
@@ -236,7 +257,7 @@ class CAC(RLAlgorithm):
         actions = samples_data['action']
         rewards = samples_data['reward'].flatten()
 
-        # Need to distinguish between timeout and true terminal states!
+        # Distinguish between timeout and true terminal states
         terminals = (samples_data['terminal']==StepType.TERMINAL).float().flatten()
         timeouts =  (samples_data['terminal']==StepType.TIMEOUT ).float().flatten()
 
@@ -281,26 +302,32 @@ class CAC(RLAlgorithm):
                 min_qf2_loss += (q2_new_next_actions.flatten()*timeouts).mean()
 
         beta_loss = 0
-        if self._n_updates_performed>=self._n_bc_steps:
-            # Autotune the regularization constant
-            if self._beta_optimizer is not None:
-                beta_loss = - self._log_beta * ((bellman_qf1_loss+bellman_qf2_loss).detach()/2 - self._target_bellman_error)
-                self._beta_optimizer.zero_grad()
-                beta_loss.backward()
-                self._beta_optimizer.step()
-            beta = self._log_beta.exp().detach()
-            if beta<=1:
-                qf1_loss = bellman_qf1_loss * beta + min_qf1_loss
-                qf2_loss = bellman_qf2_loss * beta + min_qf2_loss
-            else:
-                qf1_loss = bellman_qf1_loss + min_qf1_loss/beta
-                qf2_loss = bellman_qf2_loss + min_qf2_loss/beta
+        # if self._n_updates_performed>=self._n_bc_steps:
+        # Autotune the regularization constant
+        if self._beta_optimizer is not None:
+            beta_loss = - self._log_beta * ((bellman_qf1_loss+bellman_qf2_loss).detach()/2 - self._target_bellman_error)
+            self._beta_optimizer.zero_grad()
+            beta_loss.backward()
+            self._beta_optimizer.step()
+        beta = self._log_beta.exp().detach()
 
-        else:  # for warm start
-            beta = self._log_beta.exp().detach()  # for logging
-            qf1_loss = bellman_qf1_loss
-            qf2_loss = bellman_qf2_loss
+        # Autotune the gate of pessimism
+        if self._gate_optimizer is not None:
+            # - y* pess - y = -y (pess+1)
+            gate_loss = - (min(min_qf1_loss, min_qf2_loss).detach()+1) * self._gate
+            self._gate_optimizer.zero_grad()
+            gate_loss.backward()
+            self._gate_optimizer.step()
+            self._gate.data = torch.clip(self._gate, min=0, max=1).data # projection
 
+        gate = self._gate.detach()
+
+        qf1_loss = bellman_qf1_loss * beta + min_qf1_loss * gate
+        qf2_loss = bellman_qf2_loss * beta + min_qf2_loss * gate
+        # else:  # for warm start
+        #     beta = self._log_beta.exp().detach()  # for logging
+        #     qf1_loss = bellman_qf1_loss
+        #     qf2_loss = bellman_qf2_loss
 
         if self._version != 3:
             # update qfs first
@@ -391,7 +418,7 @@ class CAC(RLAlgorithm):
             self._policy_optimizer.step()
             self._scheduler.step() if self._scheduler is not None else None
         else:
-            # update qf and policy together
+            # version 3:  update qf and policy together
             self._policy_optimizer.zero_grad()
             policy_loss.backward()
             self._policy_optimizer.step()
@@ -409,9 +436,9 @@ class CAC(RLAlgorithm):
 
 
         # For logging
-        grad_norm = 0
+        policy_grad_norm = 0
         for param in self.policy.parameters():
-            grad_norm += torch.sum(param.grad**2) if param.grad is not None else 0.
+            policy_grad_norm += torch.sum(param.grad**2) if param.grad is not None else 0.
         policy_lr = self._scheduler.get_last_lr()[0] if self._scheduler is not None else self._bc_policy_lr
 
         q_new_actions_mean = (q1_new_actions+q2_new_actions).mean()/2
@@ -436,9 +463,10 @@ class CAC(RLAlgorithm):
                     lower_bound=lower_bound,
                     reward_scale=self._reward_scale,
                     policy_lr=policy_lr,
-                    grad_norm=grad_norm,
+                    policy_grad_norm=policy_grad_norm,
                     q_new_actions_mean=q_new_actions_mean,
                     q_pred_mean=q_pred_mean,
+                    gate=gate,
                     )
 
         return log_info
@@ -488,6 +516,12 @@ class CAC(RLAlgorithm):
         else:
             self._log_beta = torch.Tensor([self._log_beta]).to(device).requires_grad_()
             self._beta_optimizer = optimizer([self._log_beta], lr=self._alpha_lr)
+
+        if self._gate_optimizer is None:
+            self._gate = torch.Tensor([self._gate]).to(device)
+        else:
+            self._gate = torch.Tensor([self._gate]).to(device).requires_grad_()
+            self._gate_optimizer = optimizer([self._gate], lr=self._alpha_lr)
 
 
         if self._version==1:  # XXX Mirror Descent

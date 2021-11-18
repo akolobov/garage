@@ -79,26 +79,27 @@ def train_func(ctxt=None,
                minibatch_size=256,  # optimization/replaybuffer minibatch size
                n_grad_steps=1000,  # number of gradient updates per epoch
                steps_per_epoch=1,  # number of internal epochs steps per epoch
-               n_bc_steps=20000,
-               fixed_alpha=None,
-               use_two_qfs=True,
-               use_deterministic_evaluation=True,
+               n_bc_steps=20000,  # number of warm-up steps
+               fixed_alpha=None,  # whether to fix the temperate parameter
+               use_two_qfs=True,  # whether to use two q function
+               use_deterministic_evaluation=True,  # do evaluation based on the deterministic policy
                num_evaluation_episodes=5, # number of episodes to evaluate (only affect off-policy algorithms)
                # CQL parameters
                lagrange_thresh=5.0,
                min_q_weight=1.0,
                # CAC parameters
-               beta=1.0,
-               version=0,
-               kl_constraint=0.05,
+               beta=1.0,  # weight on the Bellman error
+               version=0,  # update rule of policy update
+               kl_constraint=0.05,  # (deprecated)
                alpha_lr=None,  # stepsize for controlling the entropy
                bc_policy_lr=None, # stepsize of bc
                policy_lr_decay_rate=0, # decay rate of policy_lr in CAC
                policy_update_tau=None, # for the policy.
-               penalize_time_out=False,
-               decorrelate_actions=False,
-               terminal_value=0,
-               q_weight_decay=0.,
+               penalize_time_out=False,  # whether to penalize time out values
+               decorrelate_actions=False,  # whether to use the same sampled action in the policy and q updates
+               terminal_value=0,  # value of the terminal state
+               q_weight_decay=0.,  # weight decay coefficient
+               gate_pessimism=True,
                # Compute parameters
                seed=0,
                n_workers=1,  # number of workers for data collection
@@ -120,13 +121,13 @@ def train_func(ctxt=None,
     dataset = None
     while dataset is None:
         try:
-            _env = gym.make(env_name)  # d4rl env
-            dataset = d4rl.qlearning_dataset(_env)
+            d4rl_env = gym.make(env_name)  # d4rl env
+            dataset = d4rl.qlearning_dataset(d4rl_env)
         except (HTTPError, OSError):
             pass
 
     # Initialize replay buffer and gymenv
-    env = GymEnv(_env)
+    env = GymEnv(d4rl_env)
     replay_buffer = PathBuffer(capacity_in_transitions=int(replay_buffer_size))
 
     if algo=='CAC':
@@ -141,6 +142,10 @@ def train_func(ctxt=None,
         reward_scale = 10./(max(r_min, r_max) + 1e-6)
     else:
         reward_scale = 1.0
+
+    # Set the right terminal value (roughly)
+    if 'kitchen' in env_name:
+        terminal_value = 4/(1-discount)
 
     # Initialize the algorithm
     env_spec = env.spec
@@ -250,8 +255,8 @@ def run(log_root='.',
     if train_kwargs['algo']=='CQL':
         log_dir = get_log_dir_name(train_kwargs, ['policy_lr', 'value_lr', 'lagrange_thresh', 'min_q_weight', 'seed'])
     if train_kwargs['algo']=='CAC':
-        log_dir = get_log_dir_name(train_kwargs, ['version',
-                                                  'beta', 'discount', 'q_weight_decay',
+        log_dir = get_log_dir_name(train_kwargs, [ #'version',
+                                                  'beta', 'discount', 'gate_pessimism',
                                                   'policy_lr', 'value_lr', 'target_update_tau',
                                                    #'terminal_value', 'penalize_time_out',
                                                    # 'alpha_lr', 'bc_policy_lr',
@@ -333,6 +338,7 @@ if __name__=='__main__':
     parser.add_argument('--penalize_time_out', type=str2bool, default=False)
     parser.add_argument('--decorrelate_actions', type=str2bool, default=False)
     parser.add_argument('--terminal_value', type=float, default=0)
+    parser.add_argument('--gate_pessimism', type=str2bool, default=True)
 
     train_kwargs = vars(parser.parse_args())
     run(**train_kwargs)
