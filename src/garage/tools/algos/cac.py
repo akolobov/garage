@@ -14,6 +14,14 @@ from garage.torch import as_torch_dict, global_device
 from garage.torch.algos import SAC
 # yapf: enable
 
+def normalized_sum(loss, reg, w):
+    # loss + w * reg
+    if w>1:
+        return loss/w + reg
+    else:
+        return loss + w*reg
+
+
 class CAC(RLAlgorithm):
     """A Conservative Actor Critic Model in Torch.
 
@@ -322,8 +330,11 @@ class CAC(RLAlgorithm):
 
         gate = self._gate.detach()
 
-        qf1_loss = bellman_qf1_loss * beta + min_qf1_loss * gate
-        qf2_loss = bellman_qf2_loss * beta + min_qf2_loss * gate
+        # qf1_loss = bellman_qf1_loss * beta + min_qf1_loss * gate
+        # qf2_loss = bellman_qf2_loss * beta + min_qf2_loss * gate
+        qf1_loss = normalized_sum(min_qf1_loss * gate, bellman_qf1_loss, beta)
+        qf2_loss = normalized_sum(min_qf2_loss * gate, bellman_qf2_loss, beta)
+
         # else:  # for warm start
         #     beta = self._log_beta.exp().detach()  # for logging
         #     qf1_loss = bellman_qf1_loss
@@ -408,9 +419,11 @@ class CAC(RLAlgorithm):
 
         if self._n_updates_performed < self._n_bc_steps: # BC warmstart
             policy_log_prob = new_actions_dist.log_prob(samples_data['action'])
-            policy_loss = - policy_log_prob.mean() + alpha * policy_kl
+            # policy_loss = - policy_log_prob.mean() + alpha * policy_kl
+            policy_loss = normalized_sum(- policy_log_prob.mean(), policy_kl, alpha)
         else:
-            policy_loss = - lower_bound + alpha * policy_kl
+            # policy_loss = - lower_bound + alpha * policy_kl
+            policy_loss = normalized_sum(-lower_bound, policy, alpha)
 
         if self._version != 3:
             self._policy_optimizer.zero_grad()
