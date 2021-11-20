@@ -310,35 +310,33 @@ class CAC(RLAlgorithm):
                 min_qf2_loss += (q2_new_next_actions.flatten()*timeouts).mean()
 
         beta_loss = 0
-        # if self._n_updates_performed>=self._n_bc_steps:
-        # Autotune the regularization constant
-        if self._beta_optimizer is not None:
-            beta_loss = - self._log_beta * ((bellman_qf1_loss+bellman_qf2_loss).detach()/2 - self._target_bellman_error)
-            self._beta_optimizer.zero_grad()
-            beta_loss.backward()
-            self._beta_optimizer.step()
-        beta = self._log_beta.exp().detach()
+        if self._n_updates_performed>=self._n_bc_steps:
+                # Autotune the regularization constant
+            if self._beta_optimizer is not None:
+                beta_loss = - self._log_beta * ((bellman_qf1_loss+bellman_qf2_loss).detach()/2 - self._target_bellman_error)
+                self._beta_optimizer.zero_grad()
+                beta_loss.backward()
+                self._beta_optimizer.step()
+            beta = self._log_beta.exp().detach()
+            # Autotune the gate of pessimism
+            if self._gate_optimizer is not None:
+                # - y* pess - y = -y (pess+1)
+                gate_loss = - (min(min_qf1_loss, min_qf2_loss).detach()+1) * self._gate
+                self._gate_optimizer.zero_grad()
+                gate_loss.backward()
+                self._gate_optimizer.step()
+                self._gate.data = torch.clip(self._gate, min=0, max=1).data # projection
+            gate = self._gate.detach()
 
-        # Autotune the gate of pessimism
-        if self._gate_optimizer is not None:
-            # - y* pess - y = -y (pess+1)
-            gate_loss = - (min(min_qf1_loss, min_qf2_loss).detach()+1) * self._gate
-            self._gate_optimizer.zero_grad()
-            gate_loss.backward()
-            self._gate_optimizer.step()
-            self._gate.data = torch.clip(self._gate, min=0, max=1).data # projection
+            # qf1_loss = bellman_qf1_loss * beta + min_qf1_loss * gate
+            # qf2_loss = bellman_qf2_loss * beta + min_qf2_loss * gate
+            qf1_loss = normalized_sum(min_qf1_loss * gate, bellman_qf1_loss, beta)
+            qf2_loss = normalized_sum(min_qf2_loss * gate, bellman_qf2_loss, beta)
 
-        gate = self._gate.detach()
-
-        # qf1_loss = bellman_qf1_loss * beta + min_qf1_loss * gate
-        # qf2_loss = bellman_qf2_loss * beta + min_qf2_loss * gate
-        qf1_loss = normalized_sum(min_qf1_loss * gate, bellman_qf1_loss, beta)
-        qf2_loss = normalized_sum(min_qf2_loss * gate, bellman_qf2_loss, beta)
-
-        # else:  # for warm start
-        #     beta = self._log_beta.exp().detach()  # for logging
-        #     qf1_loss = bellman_qf1_loss
-        #     qf2_loss = bellman_qf2_loss
+        else:  # for warm start
+            beta = self._log_beta.exp().detach()  # for logging
+            qf1_loss = bellman_qf1_loss
+            qf2_loss = bellman_qf2_loss
 
         if self._version != 3:
             # update qfs first
@@ -423,7 +421,7 @@ class CAC(RLAlgorithm):
             policy_loss = normalized_sum(- policy_log_prob.mean(), policy_kl, alpha)
         else:
             # policy_loss = - lower_bound + alpha * policy_kl
-            policy_loss = normalized_sum(-lower_bound, policy, alpha)
+            policy_loss = normalized_sum(-lower_bound, policy_kl, alpha)
 
         if self._version != 3:
             self._policy_optimizer.zero_grad()
