@@ -11,8 +11,9 @@ import torch.nn.functional as F
 from garage import log_performance, obtain_evaluation_episodes, StepType
 from garage.np.algos import RLAlgorithm
 from garage.torch import as_torch_dict, global_device
-from garage.torch.algos import SAC
 # yapf: enable
+
+torch.set_flush_denormal(True)
 
 def normalized_sum(loss, reg, w):
     # loss + w * reg
@@ -20,6 +21,21 @@ def normalized_sum(loss, reg, w):
         return loss/w + reg
     else:
         return loss + w*reg
+
+@torch.no_grad()
+def l2_projection(module, constraint):
+
+    for w in module.parameters():
+        # if w.shape[0]==1:  # last layer
+        #     norm = torch.norm(w)
+        #     a = torch.clip(constraint/norm, max=1)
+        #     w.mul_(a)
+        # else:
+        #     # norm = torch.norm(w, dim=1, keepdim=True)
+        #     w.copy_(torch.clip(w,-constraint, constraint))
+        # w.copy_(torch.clip(w,-constraint, constraint))
+        norm = torch.norm(w)
+        w.mul_(torch.clip(constraint/norm, max=1))
 
 
 class CAC(RLAlgorithm):
@@ -94,61 +110,42 @@ class CAC(RLAlgorithm):
             target_entropy=None,
             initial_log_entropy=0.,
             discount=0.99,
-            buffer_batch_size=64,
+            buffer_batch_size=256,
             min_buffer_size=int(1e4),
             target_update_tau=5e-3,
             policy_lr=5e-5,
             qf_lr=5e-4,
             reward_scale=1.0,
-            optimizer=torch.optim.Adam,
+            optimizer='RMSprop',
             steps_per_epoch=1,
             num_evaluation_episodes=10,
             eval_env=None,
             use_deterministic_evaluation=True,
             # CAC parameters
-            bc_policy_lr=None,  # stepsize of behavior cloning
-            alpha_lr=None,  # stepsize of the most inner optimization
-            beta=1.0,  # the regularization coefficient in front of the Bellman error
-            n_bc_steps=20000,
+            n_warmstart_steps=20000,
+            beta=-1.0,  # the regularization coefficient in front of the Bellman error
+            n_qf_steps=1,
+            norm_constraint=10,
             terminal_value=0,
-            gate_pessimism=True,
             use_two_qfs=True,
-            # deprecated arguments
-            version=0,
-            kl_constraint=0.05,
-            policy_update_tau=None, # 1e-3,
-            penalize_time_out=False,
-            policy_lr_decay_rate=0,  # per epoch
-            decorrelate_actions=False,
-            backup_entropy=False,
-            q_weight_decay=0,
             ):
 
-
-        # Deprecated arguments
-        assert version==0
-        assert np.isclose(q_weight_decay, 0)
-        assert not backup_entropy
-        assert not decorrelate_actions
-        assert np.isclose(policy_lr_decay_rate, 0.)
-        assert not penalize_time_out
-        assert policy_update_tau is None
+        n_qf_steps = max(1, n_qf_steps)
+        optimizer = eval('torch.optim.'+optimizer)
 
         ## CAC parameters
-        self._n_bc_steps = n_bc_steps
-        self._n_updates_performed = 0  # counter for bc
-        self._use_two_qfs = use_two_qfs
-        self._penalize_time_out = penalize_time_out  # whether to penalize time out states' values
-        self._policy_lr_decay_rate = policy_lr_decay_rate  # whether to sample different actions for the value and the actor loss
-        self._scheduler = None  # scheduler of the policy lr
-        self._decorrelate_actions = decorrelate_actions
-        self._alpha_lr =  qf_lr if alpha_lr is None else alpha_lr  # potentially a larger stepsize, for the most inner optimization.
-        self._bc_policy_lr = qf_lr if bc_policy_lr is None else bc_policy_lr   # potentially a larger stepsize
-        self._policy_update_tau = policy_update_tau or target_update_tau
+        self._n_warmstart_steps = n_warmstart_steps
+        self._n_qf_steps = n_qf_steps
+        self._norm_constraint = norm_constraint
+
         self._terminal_value = terminal_value  # terminal value of of the absorbing state
-        self._backup_entropy = backup_entropy  # whether to backup entropy in the q objective
-        self._q_weight_decay = q_weight_decay  # weight decay coefficient on the q network
-        policy_lr = qf_lr if policy_lr is None else policy_lr # use shared lr if not provided.
+        policy_lr = qf_lr if policy_lr is None or policy_lr < 0 else policy_lr # use shared lr if not provided.
+        self._alpha_lr =  qf_lr # potentially a larger stepsize, for the most inner optimization.
+        self._bc_policy_lr = qf_lr  # potentially a larger stepsize
+        self._use_two_qfs = use_two_qfs
+
+        # Counter of number of grad steps performed
+        self._n_updates_performed = 0
 
         # Regularization constant on the Bellman error
         if beta>=0:  # use fixed reg coeff
@@ -158,22 +155,6 @@ class CAC(RLAlgorithm):
             self._target_bellman_error = -beta
             self._log_beta = torch.Tensor([0]).requires_grad_()  # i.e. beta=1
             self._beta_optimizer = optimizer([self._log_beta], lr=self._alpha_lr)
-
-        # Set a gate for pessimism
-        self.gate_pessimism = gate_pessimism
-        if self.gate_pessimism:
-            self._gate = torch.Tensor([1]).requires_grad_()
-            self._gate_optimizer = optimizer([self._gate], lr=self._alpha_lr)
-        else:
-            self._gate = torch.Tensor([1])
-            self._gate_optimizer = None
-
-        self._version = version
-        self._target_policy = None
-        if self._version==1:  # XXX Mirror Descent
-            self._target_policy = copy.deepcopy(policy)
-            if target_entropy is None:
-                 target_entropy = -kl_constraint  # negative entropy
 
         # SAC parameters
         self._qf1 = qf1
@@ -213,11 +194,10 @@ class CAC(RLAlgorithm):
         self._policy_optimizer = self._optimizer(self.policy.parameters(),
                                                  lr=self._bc_policy_lr) #  lr=self._policy_lr)
         self._qf1_optimizer = self._optimizer(self._qf1.parameters(),
-                                              lr=self._qf_lr,
-                                              weight_decay= self._q_weight_decay)
+                                              lr=self._qf_lr)
         self._qf2_optimizer = self._optimizer(self._qf2.parameters(),
-                                              lr=self._qf_lr,
-                                              weight_decay= self._q_weight_decay)
+                                              lr=self._qf_lr)
+
         # automatic entropy coefficient tuning
         self._use_automatic_entropy_tuning = fixed_alpha is None
         self._fixed_alpha = fixed_alpha
@@ -236,7 +216,10 @@ class CAC(RLAlgorithm):
         self.episode_rewards = deque(maxlen=30)
 
 
-    def optimize_policy(self, samples_data):
+    def optimize_policy(self,
+                        samples_data,
+                        warmstart=False,
+                        qf_update_only=False):
         """Optimize the policy q_functions, and temperature coefficient.
 
         Args:
@@ -259,139 +242,81 @@ class CAC(RLAlgorithm):
             torch.Tensor: loss from 2nd q-function after optimization.
 
         """
-        ## Critic Loss
+
+        ## Update Critic
         obs = samples_data['observation']
         next_obs = samples_data['next_observation']
         actions = samples_data['action']
         rewards = samples_data['reward'].flatten()
-
-        # Distinguish between timeout and true terminal states
-        terminals = (samples_data['terminal']==StepType.TERMINAL).float().flatten()
-        timeouts =  (samples_data['terminal']==StepType.TIMEOUT ).float().flatten()
+        terminals =  samples_data['terminal'].flatten()
 
         # Bellman error
         q1_pred = self._qf1(obs, actions)
         if self._use_two_qfs:
             q2_pred = self._qf2(obs, actions)
-
-        new_next_actions_dist = self.policy(next_obs)[0]
-        new_next_actions_pre_tanh, new_next_actions = new_next_actions_dist.rsample_with_pre_tanh_value()
-        with torch.no_grad():  # Compute target for regression
+        with torch.no_grad():  # compute target for regression
+            new_next_actions_dist = self.policy(next_obs)[0]
+            new_next_actions_pre_tanh, new_next_actions = new_next_actions_dist.rsample_with_pre_tanh_value()
             target_q_values = self._target_qf1(next_obs, new_next_actions)
             if self._use_two_qfs:
-                target_q_values = torch.min(target_q_values, self._target_qf2(next_obs, new_next_actions))  # no entropy term
-            q_target = rewards * self._reward_scale + (1.-terminals) * self._discount * target_q_values.flatten() + terminals * self._terminal_value
-            if self._backup_entropy:
-                log_pi_new_next_actions = new_next_actions_dist.log_prob(
-                     value=new_next_actions, pre_tanh_value=new_next_actions_pre_tanh)
-                alpha = self._log_alpha.exp()
-                q_target = q_target - alpha * log_pi_new_next_actions.flatten()
+                target_q_values = torch.min(target_q_values, self._target_qf2(next_obs, new_next_actions))
+            q_target = rewards * self._reward_scale \
+                       + (1.-terminals) * self._discount * target_q_values.flatten() \
+                       + terminals * self._terminal_value
 
         bellman_qf1_loss = F.mse_loss(q1_pred.flatten(), q_target)
         bellman_qf2_loss = F.mse_loss(q2_pred.flatten(), q_target) if self._use_two_qfs else 0.
 
-        # Value difference
-        new_actions_dist = self.policy(obs)[0]
-        new_actions_pre_tanh, new_actions = new_actions_dist.rsample_with_pre_tanh_value()
-        q1_new_actions = self._qf1(obs, new_actions.detach())
-        min_qf1_loss = (q1_new_actions - q1_pred).mean()
+        # Needed in the actor loss
+        if not qf_update_only or not warmstart:
+            # these samples will be used for the actor update too, so they need to be traced.
+            new_actions_dist = self.policy(obs)[0]
+            new_actions_pre_tanh, new_actions = new_actions_dist.rsample_with_pre_tanh_value()
 
-        min_qf2_loss = 0.
-        if self._use_two_qfs:
-            q2_new_actions = self._qf2(obs, new_actions.detach())
-            min_qf2_loss = (q2_new_actions - q2_pred).mean()
-
-        if self._penalize_time_out and timeouts.sum()>0:  # Penalize timeout states
-            # print('sampled {} timeout states'.format(timeouts.sum()))
-            q1_new_next_actions = self._qf1(next_obs, new_next_actions.detach())
-            min_qf1_loss += (q1_new_next_actions.flatten()*timeouts).mean()
+        beta_loss = min_qf1_loss = min_qf2_loss = 0
+        beta = self._log_beta.exp().detach()  # for logging
+        if not warmstart:
+            # Compute value difference
+            q1_new_actions = self._qf1(obs, new_actions.detach())
+            min_qf1_loss = (q1_new_actions - q1_pred).mean()
             if self._use_two_qfs:
-                q2_new_next_actions = self._qf2(next_obs, new_next_actions.detach())
-                min_qf2_loss += (q2_new_next_actions.flatten()*timeouts).mean()
+                q2_new_actions = self._qf2(obs, new_actions.detach())
+                min_qf2_loss = (q2_new_actions - q2_pred).mean()
 
-        beta_loss = 0
-        gate = 1
-        if self._n_updates_performed>=self._n_bc_steps:
-                # Autotune the regularization constant
+            # Autotune the regularization constant to satisfy Bellman constraint
             if self._beta_optimizer is not None:
                 beta_loss = - self._log_beta * ((bellman_qf1_loss+bellman_qf2_loss).detach()/2 - self._target_bellman_error)
                 self._beta_optimizer.zero_grad()
                 beta_loss.backward()
                 self._beta_optimizer.step()
-            beta = self._log_beta.exp().detach()
-            # Autotune the gate of pessimism
-            if self._gate_optimizer is not None:
-                # - y* pess - y = -y (pess+1)
-                gate_loss = - (min(min_qf1_loss, min_qf2_loss).detach()+1) * self._gate
-                self._gate_optimizer.zero_grad()
-                gate_loss.backward()
-                self._gate_optimizer.step()
-                self._gate.data = torch.clip(self._gate, min=0, max=1).data # projection
-            gate = self._gate.detach()
+                beta = self._log_beta.exp().detach()
 
-            # qf1_loss = bellman_qf1_loss * beta + min_qf1_loss * gate
-            # qf2_loss = bellman_qf2_loss * beta + min_qf2_loss * gate
-            qf1_loss = normalized_sum(min_qf1_loss * gate, bellman_qf1_loss, beta)
-            qf2_loss = normalized_sum(min_qf2_loss * gate, bellman_qf2_loss, beta)
+        # Prevent exploding gradient due to auto tuning
+        # min_qf_loss + beta * bellman_qf_loss
+        qf1_loss = normalized_sum(min_qf1_loss, bellman_qf1_loss, beta)
+        qf2_loss = normalized_sum(min_qf2_loss, bellman_qf2_loss, beta)
 
-        else:  # for warm start
-            beta = self._log_beta.exp().detach()  # for logging
-            qf1_loss = bellman_qf1_loss
-            qf2_loss = bellman_qf2_loss
+        self._qf1_optimizer.zero_grad()
+        qf1_loss.backward()
+        self._qf1_optimizer.step()
+        l2_projection(self._qf1, self._norm_constraint)
 
-        if self._version != 3:
-            # update qfs first
-            self._qf1_optimizer.zero_grad()
-            qf1_loss.backward()
-            self._qf1_optimizer.step()
+        if self._use_two_qfs:
+            self._qf2_optimizer.zero_grad()
+            qf2_loss.backward()
+            self._qf2_optimizer.step()
+            l2_projection(self._qf2, self._norm_constraint)
 
-            if self._use_two_qfs:
-                self._qf2_optimizer.zero_grad()
-                qf2_loss.backward()
-                self._qf2_optimizer.step()
+        if qf_update_only:
+            return
 
-        ## Actior Loss
-        #  Perform BC for self._n_bc_steps iterations, and then CAC.
-        if self._n_updates_performed==self._n_bc_steps:
-            # Reset optimizers since the objective changes from BC to CAC.
-            if self._use_automatic_entropy_tuning:
-                self._log_alpha = torch.Tensor([self._initial_log_entropy]).requires_grad_().to(self._log_alpha.device)
-                self._alpha_optimizer = self._optimizer([self._log_alpha], lr=self._alpha_lr)
-            self._policy_optimizer = self._optimizer(self.policy.parameters(), lr=self._policy_lr)
-            # Use decaying learning rate for no regret
-            from torch.optim.lr_scheduler import LambdaLR
-            self._scheduler = LambdaLR(self._policy_optimizer,
-                                       lr_lambda=lambda i: 1.0/np.sqrt(1+i*self._policy_lr_decay_rate/self._gradient_steps))
+
+        ## Update Actor
 
         # Compuate entropy
-        if self._decorrelate_actions:
-            new_actions_dist = self.policy(obs)[0]
-            new_actions_pre_tanh, new_actions = new_actions_dist.rsample_with_pre_tanh_value()
         log_pi_new_actions = new_actions_dist.log_prob(value=new_actions, pre_tanh_value=new_actions_pre_tanh)
         policy_entropy = -log_pi_new_actions.mean()
-
-        if self._penalize_time_out and timeouts.sum()>0:
-            if self._decorrelate_actions:
-                new_next_actions_dist = self.policy(next_obs)[0]
-                new_next_actions_pre_tanh, new_next_actions = new_next_actions_dist.rsample_with_pre_tanh_value()
-            log_pi_new_next_actions = new_next_actions_dist.log_prob(
-                     value=new_next_actions, pre_tanh_value=new_next_actions_pre_tanh)
-            policy_entropy += -(log_pi_new_next_actions.flatten()*timeouts).mean()
-
-        # Compute KL
-        policy_kl = - policy_entropy  # to a uniform distribution up to a constant
-        if self._version==1:  # XXX Mirror Descent
-            with torch.no_grad():
-                target_action_dists = self._target_policy(obs)[0]
-            log_target_pi_new_actions = target_action_dists.log_prob(value=new_actions, pre_tanh_value=new_actions_pre_tanh)
-            policy_kl += -log_target_pi_new_actions.mean()
-
-            if self._penalize_time_out and timeouts.sum()>0:
-                with torch.no_grad():
-                    target_next_action_dists = self._target_policy(next_obs)[0]
-                log_target_pi_new_next_actions = target_next_action_dists.log_prob(value=new_next_actions, pre_tanh_value=new_next_actions_pre_tanh)
-                policy_kl += -(log_target_pi_new_next_actions.flatten()*timeouts).mean()
-
+        policy_kl = -policy_entropy  # to a uniform distribution up to a constant
 
         alpha_loss = 0
         if self._use_automatic_entropy_tuning:  # it comes first; seems to work also when put after policy update
@@ -404,60 +329,46 @@ class CAC(RLAlgorithm):
         with torch.no_grad():
             alpha = self._log_alpha.exp()
 
-        # Compute performance difference lower bound
-        min_q_new_actions = self._qf1(obs, new_actions)
-        if self._use_two_qfs:
-            min_q_new_actions = torch.min(min_q_new_actions, self._qf2(obs, new_actions))
-        lower_bound = min_q_new_actions.mean()
-
-        if self._penalize_time_out and timeouts.sum()>0:
-            min_q_new_next_actions = self._qf1(next_obs, new_next_actions)
-            if self._use_two_qfs:
-                min_q_new_next_actions = torch.min(min_q_new_next_actions, self._qf2(next_obs, new_next_actions))
-            lower_bound += (min_q_new_next_actions.flatten()*timeouts).mean()
-
-        if self._n_updates_performed < self._n_bc_steps: # BC warmstart
+        lower_bound = 0
+        if warmstart: # BC warmstart
             policy_log_prob = new_actions_dist.log_prob(samples_data['action'])
             # policy_loss = - policy_log_prob.mean() + alpha * policy_kl
-            policy_loss = normalized_sum(- policy_log_prob.mean(), policy_kl, alpha)
+            policy_loss = normalized_sum(-policy_log_prob.mean(), policy_kl, alpha)
         else:
+            # Compute performance difference lower bound
+            min_q_new_actions = self._qf1(obs, new_actions)
+            if self._use_two_qfs:
+                min_q_new_actions = torch.min(min_q_new_actions, self._qf2(obs, new_actions))
+            lower_bound = min_q_new_actions.mean()
             # policy_loss = - lower_bound + alpha * policy_kl
             policy_loss = normalized_sum(-lower_bound, policy_kl, alpha)
 
-        if self._version != 3:
-            self._policy_optimizer.zero_grad()
-            policy_loss.backward()
-            self._policy_optimizer.step()
-            self._scheduler.step() if self._scheduler is not None else None
-        else:
-            # version 3:  update qf and policy together
-            self._policy_optimizer.zero_grad()
-            policy_loss.backward()
-            self._policy_optimizer.step()
+        self._policy_optimizer.zero_grad()
+        policy_loss.backward()
+        self._policy_optimizer.step()
 
-            self._qf1_optimizer.zero_grad()
-            qf1_loss.backward()
-            self._qf1_optimizer.step()
+        # For debugging
+        with torch.no_grad():
+            policy_grad_norm = 0
+            for param in self.policy.parameters():
+                policy_grad_norm += torch.sum(param.grad**2) if param.grad is not None else 0.
+            q1_pred_mean = q1_pred.mean()
+            q2_pred_mean = q2_pred.mean() if self._use_two_qfs else 0.
+            q1_new_actions_mean = q1_new_actions.mean() if not warmstart else 0.
+            q2_new_actions_mean = q2_new_actions.mean() if not warmstart and self._use_two_qfs else 0.
+            action_diff = torch.mean(torch.norm(samples_data['action'] - new_actions, dim=1))
+
+            # Debug
+            qf1_norms = []
+            for param in self._qf1.parameters():
+                qf1_norms.append(torch.norm(param).detach().numpy())
 
             if self._use_two_qfs:
-                self._qf2_optimizer.zero_grad()
-                qf2_loss.backward()
-                self._qf2_optimizer.step()
+                qf2_norms = []
+                for param in self._qf2.parameters():
+                    qf2_norms.append(torch.norm(param).detach().numpy())
 
-            self._scheduler.step() if self._scheduler is not None else None
-
-
-        # For logging
-        policy_grad_norm = 0
-        for param in self.policy.parameters():
-            policy_grad_norm += torch.sum(param.grad**2) if param.grad is not None else 0.
-        policy_lr = self._scheduler.get_last_lr()[0] if self._scheduler is not None else self._bc_policy_lr
-
-        q_new_actions_mean = (q1_new_actions+q2_new_actions).mean()/2
-        q_pred_mean = (q1_pred+q2_pred).mean()/2
-        new_actions_norm = torch.norm(new_actions)
-
-        self._n_updates_performed += 1
+            new_actions_norm = torch.norm(new_actions)
 
         log_info = dict(
                     policy_loss=policy_loss,
@@ -470,17 +381,25 @@ class CAC(RLAlgorithm):
                     beta=beta,
                     beta_loss=beta_loss,
                     alpha_loss=alpha_loss,
-                    policy_kl=policy_kl,
                     policy_entropy=policy_entropy,
                     alpha=alpha,
                     lower_bound=lower_bound,
                     reward_scale=self._reward_scale,
-                    policy_lr=policy_lr,
                     policy_grad_norm=policy_grad_norm,
-                    q_new_actions_mean=q_new_actions_mean,
-                    q_pred_mean=q_pred_mean,
-                    gate=gate,
+                    q1_new_actions_mean=q1_new_actions_mean,
+                    q2_new_actions_mean=q2_new_actions_mean,
+                    q1_pred_mean=q1_pred_mean,
+                    q2_pred_mean=q2_pred_mean,
+                    action_diff=action_diff,
+                    new_actions_norm=new_actions_norm,
                     )
+
+        # Debug
+        for n, norm in enumerate(qf1_norms):
+            log_info['qf1_norm_'+str(n)] = norm
+        if self._use_two_qfs:
+            for n, norm in enumerate(qf2_norms):
+                log_info['qf2_norm_'+str(n)] = norm
 
         return log_info
 
@@ -498,11 +417,6 @@ class CAC(RLAlgorithm):
             for t_param, param in zip(target_qf.parameters(), qf.parameters()):
                 t_param.data.copy_(t_param.data * (1.0 - self._tau) +
                                    param.data * self._tau)
-
-        if self._version==1:  # XXX Mirror Descent
-            for t_param, param in zip(self._target_policy.parameters(), self.policy.parameters()):
-                t_param.data.copy_(t_param.data * (1.0 - self._policy_update_tau) +
-                                   param.data * self._policy_update_tau)
 
     # Set also the target policy if needed
     def to(self, device=None):
@@ -530,15 +444,6 @@ class CAC(RLAlgorithm):
             self._log_beta = torch.Tensor([self._log_beta]).to(device).requires_grad_()
             self._beta_optimizer = optimizer([self._log_beta], lr=self._alpha_lr)
 
-        if self._gate_optimizer is None:
-            self._gate = torch.Tensor([self._gate]).to(device)
-        else:
-            self._gate = torch.Tensor([self._gate]).to(device).requires_grad_()
-            self._gate_optimizer = optimizer([self._gate], lr=self._alpha_lr)
-
-
-        if self._version==1:  # XXX Mirror Descent
-            self._target_policy.to(device)
 
     # Return also the target policy if needed
     @property
@@ -558,9 +463,6 @@ class CAC(RLAlgorithm):
             networks = [
                 self.policy, self._qf1, self._target_qf1
             ]
-
-        if self._version==1:  # XXX Mirror Descent
-            networks.append(self._target_policy)
 
         return networks
 
@@ -632,7 +534,6 @@ class CAC(RLAlgorithm):
                 path_returns = []
                 for path in trainer.step_episode:
                     self.replay_buffer.add_path(
-                        # TODO need to update the terminal format
                         dict(observation=path['observations'],
                              action=path['actions'],
                              reward=path['rewards'].reshape(-1, 1),
@@ -644,8 +545,10 @@ class CAC(RLAlgorithm):
                     path_returns.append(sum(path['rewards']))
                 assert len(path_returns) == len(trainer.step_episode)
                 self.episode_rewards.append(np.mean(path_returns))
+
                 for _ in range(self._gradient_steps):
                     log_info = self.train_once()
+
             if self._num_evaluation_episodes>0:
                 last_return = self._evaluate_policy(trainer.step_itr)
             self._log_statistics(log_info)
@@ -671,11 +574,32 @@ class CAC(RLAlgorithm):
         del itr
         del paths
         if self.replay_buffer.n_transitions_stored >= self._min_buffer_size:
-            samples = self.replay_buffer.sample_transitions(
-                self._buffer_batch_size)
-            samples = as_torch_dict(samples)
-            log_info = self.optimize_policy(samples)
-            self._update_targets()
+            warmstart = self._n_updates_performed<self._n_warmstart_steps
+            if self._n_updates_performed==self._n_warmstart_steps:
+                # Reset optimizers since the objective changes
+                if self._use_automatic_entropy_tuning:
+                    self._log_alpha = torch.Tensor([self._initial_log_entropy]).requires_grad_().to(self._log_alpha.device)
+                    self._alpha_optimizer = self._optimizer([self._log_alpha], lr=self._alpha_lr)
+                self._policy_optimizer = self._optimizer(self.policy.parameters(), lr=self._policy_lr)
+                self._qf1_optimizer = self._optimizer(self._qf1.parameters(),lr=self._qf_lr)
+                self._qf2_optimizer = self._optimizer(self._qf2.parameters(),lr=self._qf_lr)
+
+
+            n_qf_steps = 1 if warmstart else self._n_qf_steps
+            for i in range(n_qf_steps):
+                samples = self.replay_buffer.sample_transitions(self._buffer_batch_size)
+                samples = as_torch_dict(samples)
+                log_info = self.optimize_policy(samples,
+                                warmstart=warmstart,
+                                qf_update_only=i<n_qf_steps-1)
+                self._update_targets()
+
+
+            self._n_updates_performed += 1
+            log_info['n_updates_performed']=self._n_updates_performed
+            log_info['warmstart'] = warmstart
+            log_info['n_qf_steps'] = n_qf_steps
+            # print(self._n_updates_performed )
 
         return log_info
 

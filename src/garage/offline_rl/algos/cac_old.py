@@ -455,7 +455,6 @@ class CAC(RLAlgorithm):
 
         q_new_actions_mean = (q1_new_actions+q2_new_actions).mean()/2
         q_pred_mean = (q1_pred+q2_pred).mean()/2
-        new_actions_norm = torch.norm(new_actions)
 
         self._n_updates_performed += 1
 
