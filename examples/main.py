@@ -15,33 +15,6 @@ from garage.offline_rl.algos import CAC
 from garage.offline_rl.rl_utils import train_agent, get_sampler, setup_gpu, get_algo, get_log_dir_name, load_algo
 from garage.offline_rl.trainer import Trainer
 
-# def load_d4rl_data_as_buffer(dataset, replay_buffer):
-#     assert isinstance(replay_buffer, PathBuffer)
-#     # Determine whether timeout or absorbing happens
-#     terminals = np.zeros(dataset['terminals'].shape).reshape(-1,1)
-#     true_terminals = dataset['terminals']
-#     terminals[true_terminals] = StepType.TERMINAL
-
-#     observation=dataset['observations']
-#     next_observation=dataset['next_observations']
-#     diff = np.sum(np.abs(observation[1:]-next_observation[:-1]),axis=1)
-#     timeout = np.logical_not(np.isclose(diff,0.))
-#     timeout = np.concatenate((timeout, [not true_terminals[-1]]))
-#     terminals[timeout] = StepType.TIMEOUT
-
-#     # Make sure timeouts are not true terminal
-#     assert np.sum(timeout*true_terminals)<=0
-#     print('{} True terminals and {} Timeouts'.format(np.sum(true_terminals), np.sum(timeout)))
-
-
-#     replay_buffer.add_path(
-#         dict(observation=dataset['observations'],
-#              action=dataset['actions'],
-#              reward=dataset['rewards'].reshape(-1, 1),
-#              next_observation=dataset['next_observations'],
-#              terminal=terminals,
-#     ))
-
 def load_d4rl_data_as_buffer(dataset, replay_buffer):
     assert isinstance(replay_buffer, PathBuffer)
     replay_buffer.add_path(
@@ -67,10 +40,10 @@ def train_func(ctxt=None,
                normalize_reward=True,  # normalize the reawrd to be in [-10, 10]
                # Network parameters
                policy_hidden_sizes=(256, 256, 256),
-               policy_hidden_nonlinearity='ReLU',
+               policy_activation='ReLU',
                policy_init_std=1.0,
                value_hidden_sizes=(256, 256, 256),
-               value_hidden_nonlinearity='LeakyReLU',
+               value_activation='LeakyReLU',
                min_std=1e-5,
                # Algorithm parameters
                discount=0.99,
@@ -88,10 +61,11 @@ def train_func(ctxt=None,
                lagrange_thresh=5.0,
                min_q_weight=1.0,
                # CAC parameters
-               beta=1.0,  # weight on the Bellman error
+               beta=-1.0,  # weight on the Bellman error
                n_qf_steps=1,
                norm_constraint=10,
                use_two_qfs=True,  # whether to use two q function
+               optimizer='RMSprop',
                # Compute parameters
                seed=0,
                n_workers=1,  # number of workers for data collection
@@ -143,20 +117,20 @@ def train_func(ctxt=None,
     policy = TanhGaussianMLPPolicy(
                 env_spec=env_spec,
                 hidden_sizes=policy_hidden_sizes,
-                hidden_nonlinearity=eval('torch.nn.'+policy_hidden_nonlinearity),
+                hidden_nonlinearity=eval('torch.nn.'+policy_activation),
                 init_std=policy_init_std,
                 min_std=min_std)
 
     qf1 = ContinuousMLPQFunction(
                 env_spec=env_spec,
                 hidden_sizes=value_hidden_sizes,
-                hidden_nonlinearity=eval('torch.nn.'+value_hidden_nonlinearity),
+                hidden_nonlinearity=eval('torch.nn.'+value_activation),
                 output_nonlinearity=None)
 
     qf2 = ContinuousMLPQFunction(
                 env_spec=env_spec,
                 hidden_sizes=value_hidden_sizes,
-                hidden_nonlinearity=eval('torch.nn.'+value_hidden_nonlinearity),
+                hidden_nonlinearity=eval('torch.nn.'+value_activation),
                 output_nonlinearity=None)
 
     # """ Overwrite the parameters for setting up the policy evaluation mode. """
@@ -207,6 +181,7 @@ def train_func(ctxt=None,
             use_two_qfs=use_two_qfs,
             terminal_value=terminal_value,
             n_warmstart_steps=n_warmstart_steps,
+            optimizer=optimizer,
         )
 
     algo_config.update(extra_algo_config)
@@ -241,12 +216,13 @@ def run(log_root='.',
         log_dir = get_log_dir_name(train_kwargs, [
                                                   'beta', 'discount', 'norm_constraint',
                                                   'policy_lr', 'value_lr', 'target_update_tau',
-                                                  'n_qf_steps', 'use_two_qfs',
+                                                  'n_qf_steps', 'use_two_qfs', 'optimizer',
+                                                  'value_activation',
                                                   'n_warmstart_steps', 'seed'])
     train_kwargs['return_mode'] = 'full'
 
     # Offline training
-    log_dir_path = os.path.join(log_root,'testdata','Offline'+train_kwargs['algo']+'_'+train_kwargs['env_name'], log_dir)
+    log_dir_path = os.path.join(log_root,'exp_data','Offline'+train_kwargs['algo']+'_'+train_kwargs['env_name'], log_dir)
     full_score =  train_agent(train_func,
                     log_dir=log_dir_path,
                     train_kwargs=train_kwargs,
@@ -311,6 +287,8 @@ if __name__=='__main__':
     parser.add_argument('--target_update_tau', type=float, default=5e-3)
     parser.add_argument('--use_deterministic_evaluation', type=str2bool, default=True)
     parser.add_argument('--use_two_qfs', type=str2bool, default=True)
+    parser.add_argument('--optimizer', type=str, default='RMSprop')
+    parser.add_argument('--value_activation', type=str, default='LeakyReLU')
 
     train_kwargs = vars(parser.parse_args())
     run(**train_kwargs)
