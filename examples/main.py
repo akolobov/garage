@@ -47,7 +47,7 @@ def train_func(ctxt=None,
                min_std=1e-5,
                # Algorithm parameters
                discount=0.99,
-               policy_lr=5e-5,  # optimization stepsize for policy update
+               policy_lr=5e-6,  # optimization stepsize for policy update
                value_lr=5e-4,  # optimization stepsize for value regression
                target_update_tau=5e-3, # for target network
                minibatch_size=256,  # optimization/replaybuffer minibatch size
@@ -64,7 +64,7 @@ def train_func(ctxt=None,
                beta=-1.0,  # weight on the Bellman error
                n_qf_steps=1,
                norm_constraint=10,
-               use_two_qfs=True,  # whether to use two q function
+               use_two_qfs=False,  # whether to use two q function
                optimizer='RMSprop',
                # Compute parameters
                seed=0,
@@ -269,7 +269,7 @@ if __name__=='__main__':
     from garage.tools.utils import str2bool
     parser = argparse.ArgumentParser()
     parser.add_argument('-a', '--algo', type=str, default='CAC')
-    parser.add_argument('-e', '---env_name',  type=str, default='hopper-medium-v0')
+    parser.add_argument('-e', '---env_name',  type=str, default='hopper-medium-v2')
     parser.add_argument('--n_epochs', type=int, default=3000)
     parser.add_argument('--discount', type=float, default=0.99)
     parser.add_argument('--gpu_id', type=int, default=-1)  # use cpu by default
@@ -282,11 +282,11 @@ if __name__=='__main__':
     parser.add_argument('--beta', type=float, default=-1)
     parser.add_argument('--n_qf_steps', type=int, default=1)
     parser.add_argument('--norm_constraint', type=float, default=10)
-    parser.add_argument('--policy_lr', type=float, default=5e-5)
+    parser.add_argument('--policy_lr', type=float, default=5e-6)
     parser.add_argument('--value_lr', type=float, default=5e-4)
     parser.add_argument('--target_update_tau', type=float, default=5e-3)
     parser.add_argument('--use_deterministic_evaluation', type=str2bool, default=True)
-    parser.add_argument('--use_two_qfs', type=str2bool, default=True)
+    parser.add_argument('--use_two_qfs', type=str2bool, default=False)
     parser.add_argument('--optimizer', type=str, default='RMSprop')
     parser.add_argument('--value_activation', type=str, default='LeakyReLU')
 

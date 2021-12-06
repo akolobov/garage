@@ -267,7 +267,7 @@ def run(log_root='.',
     train_kwargs['return_mode'] = 'full'
 
     # Offline training
-    log_dir_path = os.path.join(log_root,'testdata','Offline'+train_kwargs['algo']+'_'+train_kwargs['env_name'], log_dir)
+    log_dir_path = os.path.join(log_root,'exp_data','Offline'+train_kwargs['algo']+'_'+train_kwargs['env_name'], log_dir)
     full_score =  train_agent(train_func,
                     log_dir=log_dir_path,
                     train_kwargs=train_kwargs,
@@ -313,10 +313,10 @@ if __name__=='__main__':
     import argparse
     from garage.tools.utils import str2bool
     parser = argparse.ArgumentParser()
-    parser.add_argument('-a', '--algo', type=str, default='CQL')
-    parser.add_argument('-e', '---env_name',  type=str, default='hopper-medium-v0')
+    parser.add_argument('-a', '--algo', type=str, default='CAC')
+    parser.add_argument('-e', '---env_name',  type=str, default='hopper-medium-v2')
     parser.add_argument('--n_epochs', type=int, default=3000)
-    parser.add_argument('--discount', type=float, default=0.95)
+    parser.add_argument('--discount', type=float, default=0.99)
     parser.add_argument('--gpu_id', type=int, default=-1)  # use cpu by default
     parser.add_argument('--n_workers', type=int, default=1)
     parser.add_argument('--force_cpu_data_collection', type=str2bool, default=True)
@@ -339,7 +339,7 @@ if __name__=='__main__':
     parser.add_argument('--penalize_time_out', type=str2bool, default=False)
     parser.add_argument('--decorrelate_actions', type=str2bool, default=False)
     parser.add_argument('--terminal_value', type=float, default=0)
-    parser.add_argument('--gate_pessimism', type=str2bool, default=True)
+    parser.add_argument('--gate_pessimism', type=str2bool, default=False)
 
     train_kwargs = vars(parser.parse_args())
     run(**train_kwargs)

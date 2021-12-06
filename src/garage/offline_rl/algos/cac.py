@@ -128,6 +128,7 @@ class CAC(RLAlgorithm):
             norm_constraint=10,
             terminal_value=0,
             use_two_qfs=True,
+            stats_avg_rate=0.99,
             ):
 
         n_qf_steps = max(1, n_qf_steps)
@@ -137,6 +138,7 @@ class CAC(RLAlgorithm):
         self._n_warmstart_steps = n_warmstart_steps
         self._n_qf_steps = n_qf_steps
         self._norm_constraint = norm_constraint
+        self._stats_avg_rate = stats_avg_rate
 
         self._terminal_value = terminal_value  # terminal value of of the absorbing state
         policy_lr = qf_lr if policy_lr is None or policy_lr < 0 else policy_lr # use shared lr if not provided.
@@ -148,11 +150,12 @@ class CAC(RLAlgorithm):
         self._n_updates_performed = 0
 
         # Regularization constant on the Bellman error
+        self._avg_bellman_error = 1.  # so this works with zero warm-start
         if beta>=0:  # use fixed reg coeff
             self._log_beta = torch.Tensor([np.log(beta)])
             self._beta_optimizer = self._bellman_target = None
         else:
-            self._target_bellman_error = -beta
+            self._bellman_error_multiplier = -beta
             self._log_beta = torch.Tensor([0]).requires_grad_()  # i.e. beta=1
             self._beta_optimizer = optimizer([self._log_beta], lr=self._alpha_lr)
 
@@ -267,6 +270,8 @@ class CAC(RLAlgorithm):
         bellman_qf1_loss = F.mse_loss(q1_pred.flatten(), q_target)
         bellman_qf2_loss = F.mse_loss(q2_pred.flatten(), q_target) if self._use_two_qfs else 0.
 
+        bellman_qf_loss = (bellman_qf1_loss+bellman_qf2_loss)/2 if self._use_two_qfs else bellman_qf1_loss
+
         # Needed in the actor loss
         if not qf_update_only or not warmstart:
             # these samples will be used for the actor update too, so they need to be traced.
@@ -285,11 +290,13 @@ class CAC(RLAlgorithm):
 
             # Autotune the regularization constant to satisfy Bellman constraint
             if self._beta_optimizer is not None:
-                beta_loss = - self._log_beta * ((bellman_qf1_loss+bellman_qf2_loss).detach()/2 - self._target_bellman_error)
+                beta_loss = - self._log_beta * (bellman_qf_loss.detach() - self._bellman_error_multiplier* self._avg_bellman_error)
                 self._beta_optimizer.zero_grad()
                 beta_loss.backward()
                 self._beta_optimizer.step()
                 beta = self._log_beta.exp().detach()
+        else:
+            self._avg_bellman_error = self._avg_bellman_error*self._stats_avg_rate + bellman_qf_loss.detach()*(1-self._stats_avg_rate)
 
         # Prevent exploding gradient due to auto tuning
         # min_qf_loss + beta * bellman_qf_loss
@@ -392,6 +399,7 @@ class CAC(RLAlgorithm):
                     q2_pred_mean=q2_pred_mean,
                     action_diff=action_diff,
                     new_actions_norm=new_actions_norm,
+                    avg_bellman_error=self._avg_bellman_error,
                     )
 
         # Debug
