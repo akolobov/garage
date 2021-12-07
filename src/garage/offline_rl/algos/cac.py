@@ -344,8 +344,8 @@ class CAC(RLAlgorithm):
         else:
             # Compute performance difference lower bound
             min_q_new_actions = self._qf1(obs, new_actions)
-            if self._use_two_qfs:
-                min_q_new_actions = torch.min(min_q_new_actions, self._qf2(obs, new_actions))
+            # if self._use_two_qfs:
+            #     min_q_new_actions = torch.min(min_q_new_actions, self._qf2(obs, new_actions))
             lower_bound = min_q_new_actions.mean()
             # policy_loss = - lower_bound + alpha * policy_kl
             policy_loss = normalized_sum(-lower_bound, policy_kl, alpha)

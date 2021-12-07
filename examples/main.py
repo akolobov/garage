@@ -63,7 +63,7 @@ def train_func(ctxt=None,
                # CAC parameters
                beta=-1.0,  # weight on the Bellman error
                n_qf_steps=1,
-               norm_constraint=10,
+               norm_constraint=100,
                use_two_qfs=False,  # whether to use two q function
                optimizer='RMSprop',
                # Compute parameters
@@ -217,7 +217,7 @@ def run(log_root='.',
                                                   'beta', 'discount', 'norm_constraint',
                                                   'policy_lr', 'value_lr', 'target_update_tau',
                                                   'n_qf_steps', 'use_two_qfs', 'optimizer',
-                                                  'value_activation',
+                                                  'value_activation', 'fixed_alpha',
                                                   'n_warmstart_steps', 'seed'])
     train_kwargs['return_mode'] = 'full'
 
@@ -281,7 +281,7 @@ if __name__=='__main__':
     parser.add_argument('--fixed_alpha', type=float, default=None)
     parser.add_argument('--beta', type=float, default=-1)
     parser.add_argument('--n_qf_steps', type=int, default=1)
-    parser.add_argument('--norm_constraint', type=float, default=10)
+    parser.add_argument('--norm_constraint', type=float, default=100)
     parser.add_argument('--policy_lr', type=float, default=5e-6)
     parser.add_argument('--value_lr', type=float, default=5e-4)
     parser.add_argument('--target_update_tau', type=float, default=5e-3)
