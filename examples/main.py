@@ -96,6 +96,11 @@ def train_func(ctxt=None,
     env = GymEnv(d4rl_env)
     replay_buffer = PathBuffer(capacity_in_transitions=int(replay_buffer_size))
 
+    # Set the right terminal value (roughly)
+    terminal_value = None
+    if 'kitchen' in env_name:
+        terminal_value = lambda r, gamma : r/(1-gamma)
+
     load_d4rl_data_as_buffer(dataset, replay_buffer)
 
     # Normalize the rewards to be in [-10, 10]
@@ -106,10 +111,7 @@ def train_func(ctxt=None,
     else:
         reward_scale = 1.0
 
-    # Set the right terminal value (roughly)
-    terminal_value = 0
-    if 'kitchen' in env_name:
-        terminal_value = 4/(1-discount)
+
 
     # Initialize the algorithm
     env_spec = env.spec

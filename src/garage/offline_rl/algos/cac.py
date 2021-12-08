@@ -22,20 +22,31 @@ def normalized_sum(loss, reg, w):
     else:
         return loss + w*reg
 
-@torch.no_grad()
-def l2_projection(module, constraint):
+# @torch.no_grad()
+# def l2_projection(module, constraint):
 
-    for w in module.parameters():
-        # if w.shape[0]==1:  # last layer
-        #     norm = torch.norm(w)
-        #     a = torch.clip(constraint/norm, max=1)
-        #     w.mul_(a)
-        # else:
-        #     # norm = torch.norm(w, dim=1, keepdim=True)
-        #     w.copy_(torch.clip(w,-constraint, constraint))
-        # w.copy_(torch.clip(w,-constraint, constraint))
-        norm = torch.norm(w)
-        w.mul_(torch.clip(constraint/norm, max=1))
+#     for w in module.parameters():
+#     #     # if w.shape[0]==1:  # last layer
+#     #     #     norm = torch.norm(w)
+#     #     #     a = torch.clip(constraint/norm, max=1)
+#     #     #     w.mul_(a)
+#     #     # else:
+#     #     #     # norm = torch.norm(w, dim=1, keepdim=True)
+#     #     #     w.copy_(torch.clip(w,-constraint, constraint))
+#     #     # w.copy_(torch.clip(w,-constraint, constraint))
+#         norm = torch.norm(w)
+#         w.mul_(torch.clip(constraint/norm, max=1))
+
+
+
+def l2_projection(constraint):
+    @torch.no_grad()
+    def fn(module):
+        if hasattr(module, 'weight'):
+            w = module.weight
+            norm = torch.norm(w)
+            w.mul_(torch.clip(constraint/norm, max=1))
+    return fn
 
 
 class CAC(RLAlgorithm):
@@ -126,7 +137,7 @@ class CAC(RLAlgorithm):
             beta=-1.0,  # the regularization coefficient in front of the Bellman error
             n_qf_steps=1,
             norm_constraint=10,
-            terminal_value=0,
+            terminal_value=None,
             use_two_qfs=True,
             stats_avg_rate=0.99,
             ):
@@ -140,7 +151,9 @@ class CAC(RLAlgorithm):
         self._norm_constraint = norm_constraint
         self._stats_avg_rate = stats_avg_rate
 
-        self._terminal_value = terminal_value  # terminal value of of the absorbing state
+        # terminal value of of the absorbing state
+        self._terminal_value = terminal_value if terminal_value is not None else lambda r, gamma: 0.
+
         policy_lr = qf_lr if policy_lr is None or policy_lr < 0 else policy_lr # use shared lr if not provided.
         self._alpha_lr =  qf_lr # potentially a larger stepsize, for the most inner optimization.
         self._bc_policy_lr = qf_lr  # potentially a larger stepsize
@@ -265,7 +278,7 @@ class CAC(RLAlgorithm):
                 target_q_values = torch.min(target_q_values, self._target_qf2(next_obs, new_next_actions))
             q_target = rewards * self._reward_scale \
                        + (1.-terminals) * self._discount * target_q_values.flatten() \
-                       + terminals * self._terminal_value
+                       + terminals * self._terminal_value(rewards, self._discount)
 
         bellman_qf1_loss = F.mse_loss(q1_pred.flatten(), q_target)
         bellman_qf2_loss = F.mse_loss(q2_pred.flatten(), q_target) if self._use_two_qfs else 0.
@@ -306,13 +319,15 @@ class CAC(RLAlgorithm):
         self._qf1_optimizer.zero_grad()
         qf1_loss.backward()
         self._qf1_optimizer.step()
-        l2_projection(self._qf1, self._norm_constraint)
+        self._qf1.apply(l2_projection(self._norm_constraint))
+        # l2_projection(self._qf1, self._norm_constraint)
 
         if self._use_two_qfs:
             self._qf2_optimizer.zero_grad()
             qf2_loss.backward()
             self._qf2_optimizer.step()
-            l2_projection(self._qf2, self._norm_constraint)
+            self._qf2.apply(l2_projection(self._norm_constraint))
+            # l2_projection(self._qf2, self._norm_constraint)
 
         if qf_update_only:
             return
@@ -400,6 +415,7 @@ class CAC(RLAlgorithm):
                     action_diff=action_diff,
                     new_actions_norm=new_actions_norm,
                     avg_bellman_error=self._avg_bellman_error,
+                    q_target=q_target.mean(),
                     )
 
         # Debug
