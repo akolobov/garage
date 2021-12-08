@@ -99,8 +99,11 @@ def train_func(ctxt=None,
     # Set the right terminal value (roughly)
     terminal_value = None
     if 'kitchen' in env_name:
-        terminal_value = lambda r, gamma : r/(1-gamma)
-        # dataset['rewards'] -= 4
+        good_indices = np.logical_not(dataset['terminals']*(dataset['rewards']!=4))
+        for k in dataset.keys():
+            dataset[k] = dataset[k][good_indices]
+        dataset['rewards'] -= 4
+        # or terminal_value = lambda r, gamma : 4/ (1-gamma)
 
     load_d4rl_data_as_buffer(dataset, replay_buffer)
 
