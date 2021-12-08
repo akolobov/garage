@@ -263,7 +263,7 @@ class CAC(RLAlgorithm):
         obs = samples_data['observation']
         next_obs = samples_data['next_observation']
         actions = samples_data['action']
-        rewards = samples_data['reward'].flatten()
+        rewards = samples_data['reward'].flatten() * self._reward_scale
         terminals =  samples_data['terminal'].flatten()
 
         # Bellman error
@@ -276,7 +276,7 @@ class CAC(RLAlgorithm):
             target_q_values = self._target_qf1(next_obs, new_next_actions)
             if self._use_two_qfs:
                 target_q_values = torch.min(target_q_values, self._target_qf2(next_obs, new_next_actions))
-            q_target = rewards * self._reward_scale \
+            q_target = rewards \
                        + (1.-terminals) * self._discount * target_q_values.flatten() \
                        + terminals * self._terminal_value(rewards, self._discount)
 

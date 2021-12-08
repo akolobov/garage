@@ -100,6 +100,7 @@ def train_func(ctxt=None,
     terminal_value = None
     if 'kitchen' in env_name:
         terminal_value = lambda r, gamma : r/(1-gamma)
+        # dataset['rewards'] -= 4
 
     load_d4rl_data_as_buffer(dataset, replay_buffer)
 
