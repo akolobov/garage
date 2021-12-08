@@ -1,39 +1,40 @@
 from ray import tune
-from src.garage.shortrl.main import run_exp
-from srl_config import default_config
+from examples.main import run
 
-n_workers = 4
-log_prefix = 'tune'
-algo_name='SAC'
-env_name = 'Swimmer-v2'
-h_algo_name= None
 
-space = {
-         "seed": tune.grid_search(list(range(4)))
-         }
+hps_dict = dict(
+        algo=['CAC'],
+        env_name=['kitchen-partial-v0'], # 'kitchen-partial-v0'],
+        policy_lr=[0],
+        value_lr=[5e-4],
+        beta = [0.1, 1, 10, 100, 1000],  # BC
+        # target_update_tau=[5e-3, 5e-4],
+        # beta = [-1.2],  # BC
+        # discount=[0],
+        n_qf_steps=[1],
+        norm_constraint=[100],
+        use_two_qfs=[False],
+        # fixed_alpha=[0, None],
+        # optimizer=['RMSprop'],
+        # value_activation=['LeakyReLU']
+        num_evaluation_episodes=[1],
+        # n_warmstart_steps=[0]
+)
 
-def trainable(new_config):
-    config = default_config(env_name=env_name,
-                            algo_name=algo_name,
-                            h_algo_name=h_algo_name,
-                            w_algo_name='BC',
-                             mode='train')
+for k, v in hps_dict.items():
+    hps_dict[k] = tune.grid_search(v)
 
-    for key in new_config.keys():
-        config[key] = new_config[key]
+def trainable(config):
     config['ignore_shutdown']=True
-    config['n_workers'] = n_workers
-    config['warmstart_policy'] = False #True
-
-    score = run_exp(env_name=env_name,  **config)
+    score = run(**config)
     tune.report(score=score)     # This sends the score to Tune.
 
 
 analysis= tune.run(trainable,
         resources_per_trial=tune.PlacementGroupFactory([
         {"CPU": 1},
-        {"CPU": n_workers},]),
-        config=space,
-        queue_trials=True,
+        {"CPU": 1},]),
+        config=hps_dict,
+        queue_trials=False,
         mode='max',
         )
