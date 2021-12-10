@@ -99,7 +99,7 @@ def train_func(ctxt=None,
                decorrelate_actions=False,  # whether to use the same sampled action in the policy and q updates
                terminal_value=0,  # value of the terminal state
                q_weight_decay=0.,  # weight decay coefficient
-               gate_pessimism=True,
+               gate_pessimism=False,
                # Compute parameters
                seed=0,
                n_workers=1,  # number of workers for data collection
