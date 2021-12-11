@@ -175,7 +175,7 @@ class CAC(RLAlgorithm):
             self._beta_optimizer = self._bellman_target = None
         else:
             self._bellman_constraint = -beta
-            self._init_log_beta = np.log(0.1)
+            self._init_log_beta = np.log(1.0)
             self._log_beta = torch.Tensor([self._init_log_beta]).requires_grad_()  # i.e. beta=1
             self._beta_optimizer = optimizer([self._log_beta], lr=self._beta_lr)
             self._beta_upper_bound = 1000  # threshold to double the norm constraint
@@ -284,8 +284,7 @@ class CAC(RLAlgorithm):
             target_q_values = self._target_qf1(next_obs, new_next_actions)
             if self._use_two_qfs:
                 target_q_values = torch.min(target_q_values, self._target_qf2(next_obs, new_next_actions))
-            q_target = rewards \
-                       + (1.-terminals) * self._discount * target_q_values.flatten() \
+            q_target = rewards + (1.-terminals) * self._discount * target_q_values.flatten() \
                        + terminals * self._terminal_value(rewards, self._discount)
 
         bellman_qf1_loss = F.mse_loss(q1_pred.flatten(), q_target)
@@ -320,9 +319,9 @@ class CAC(RLAlgorithm):
 
         # Doubling the norm constraint if beta is too large (i.e. infeasible)
         if self._beta_optimizer is not None and beta >= self._beta_upper_bound:
-                self._norm_constraint *= 2
-                self._log_beta = torch.Tensor([self._init_log_beta]).requires_grad_()
-                self._beta_optimizer = self._optimizer([self._log_beta], lr=self._beta_lr)
+            self._norm_constraint *= 2
+            self._log_beta = torch.Tensor([self._init_log_beta]).requires_grad_()
+            self._beta_optimizer = self._optimizer([self._log_beta], lr=self._beta_lr)
 
         # Prevent exploding gradient due to auto tuning
         # min_qf_loss + beta * bellman_qf_loss
@@ -333,18 +332,15 @@ class CAC(RLAlgorithm):
         qf1_loss.backward()
         self._qf1_optimizer.step()
         self._qf1.apply(l2_projection(self._norm_constraint))
-        # l2_projection(self._qf1, self._norm_constraint)
 
         if self._use_two_qfs:
             self._qf2_optimizer.zero_grad()
             qf2_loss.backward()
             self._qf2_optimizer.step()
             self._qf2.apply(l2_projection(self._norm_constraint))
-            # l2_projection(self._qf2, self._norm_constraint)
 
         if qf_update_only:
             return
-
 
         ## Update Actor
 
@@ -619,8 +615,8 @@ class CAC(RLAlgorithm):
                     self._log_alpha = torch.Tensor([self._initial_log_entropy]).requires_grad_().to(self._log_alpha.device)
                     self._alpha_optimizer = self._optimizer([self._log_alpha], lr=self._alpha_lr)
                 self._policy_optimizer = self._optimizer(self.policy.parameters(), lr=self._policy_lr)
-                self._qf1_optimizer = self._optimizer(self._qf1.parameters(),lr=self._qf_lr)
-                self._qf2_optimizer = self._optimizer(self._qf2.parameters(),lr=self._qf_lr)
+                # self._qf1_optimizer = self._optimizer(self._qf1.parameters(),lr=self._qf_lr)
+                # self._qf2_optimizer = self._optimizer(self._qf2.parameters(),lr=self._qf_lr)
 
 
             n_qf_steps = 1 if warmstart else self._n_qf_steps

@@ -64,7 +64,7 @@ def train_func(ctxt=None,
                beta=-1.0,  # weight on the Bellman error
                n_qf_steps=1,
                norm_constraint=100,
-               use_two_qfs=False,  # whether to use two q function
+               use_two_qfs=True,  # whether to use two q function
                optimizer='RMSprop',
                # Compute parameters
                seed=0,
@@ -292,7 +292,7 @@ if __name__=='__main__':
     parser.add_argument('--value_lr', type=float, default=5e-4)
     parser.add_argument('--target_update_tau', type=float, default=5e-3)
     parser.add_argument('--use_deterministic_evaluation', type=str2bool, default=True)
-    parser.add_argument('--use_two_qfs', type=str2bool, default=False)
+    parser.add_argument('--use_two_qfs', type=str2bool, default=True)
     parser.add_argument('--optimizer', type=str, default='RMSprop')
     parser.add_argument('--value_activation', type=str, default='LeakyReLU')
 

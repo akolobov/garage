@@ -453,8 +453,8 @@ class CAC(RLAlgorithm):
             policy_grad_norm += torch.sum(param.grad**2) if param.grad is not None else 0.
         policy_lr = self._scheduler.get_last_lr()[0] if self._scheduler is not None else self._bc_policy_lr
 
-        q_new_actions_mean = (q1_new_actions+q2_new_actions).mean()/2
-        q_pred_mean = (q1_pred+q2_pred).mean()/2
+        q_new_actions_mean = (q1_new_actions+q2_new_actions).mean()/2 if self._use_two_qfs else q1_new_actions.mean()
+        q_pred_mean = (q1_pred+q2_pred).mean()/2 if self._use_two_qfs else q1_pred.mean()
         new_actions_norm = torch.norm(new_actions)
 
         self._n_updates_performed += 1
