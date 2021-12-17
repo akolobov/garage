@@ -280,9 +280,11 @@ class CAC(RLAlgorithm):
 
         # Bellman error
         def compute_target(q_pred_next):
+            assert rewards.shape == q_pred_next.shape
             return rewards + (1.-terminals) * self._discount * q_pred_next + terminals * self._terminal_value(rewards, self._discount)
 
         def compute_mixed_bellman_loss(q_pred, q_pred_next, q_target):
+            assert q_pred.shape == q_pred_next.shape == q_target.shape
             q_target_pred = compute_target(q_pred_next)
             if self._q_eval_mode=='max':
                 return torch.max((q_pred - q_target)**2, (q_pred - q_target_pred)**2).mean()
@@ -298,12 +300,13 @@ class CAC(RLAlgorithm):
                 target_q_values = torch.min(target_q_values, self._target_qf2(next_obs, new_next_actions))
             q_target = compute_target(target_q_values.flatten())
 
-        q1_pred = self._qf1(obs, actions)
-        q1_pred_next = self._qf1(next_obs, new_next_actions)
+        q1_pred = self._qf1(obs, actions).flatten()
+        q1_pred_next = self._qf1(next_obs, new_next_actions).flatten()
         bellman_qf1_loss = compute_mixed_bellman_loss(q1_pred, q1_pred_next, q_target)
+
         if self._use_two_qfs:
-            q2_pred = self._qf2(obs, actions)
-            q2_pred_next = self._qf2(next_obs, new_next_actions)
+            q2_pred = self._qf2(obs, actions).flatten()
+            q2_pred_next = self._qf2(next_obs, new_next_actions).flatten()
             bellman_qf2_loss = compute_mixed_bellman_loss(q2_pred, q2_pred_next, q_target)
         else:
             bellman_qf2_loss = torch.Tensor([0.])
