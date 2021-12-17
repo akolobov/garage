@@ -127,7 +127,7 @@ class CAC(RLAlgorithm):
             policy_lr=5e-5,
             qf_lr=5e-4,
             reward_scale=1.0,
-            optimizer='RMSprop',
+            optimizer='Adam',
             steps_per_epoch=1,
             num_evaluation_episodes=10,
             eval_env=None,
@@ -140,6 +140,7 @@ class CAC(RLAlgorithm):
             terminal_value=None,
             use_two_qfs=True,
             stats_avg_rate=0.99,
+            eval_mode='max', # 'max' 'w1_w2'
             ):
 
         n_qf_steps = max(1, n_qf_steps)
@@ -155,6 +156,7 @@ class CAC(RLAlgorithm):
         self._n_qf_steps = n_qf_steps
         self._norm_constraint = norm_constraint
         self._stats_avg_rate = stats_avg_rate
+        self._eval_mode = [float(w) for w in eval_mode.split('_')] if '_' in eval_mode else  eval_mode
 
         # terminal value of of the absorbing state
         self._terminal_value = terminal_value if terminal_value is not None else lambda r, gamma: 0.
@@ -275,23 +277,38 @@ class CAC(RLAlgorithm):
         terminals =  samples_data['terminal'].flatten()
 
         # Bellman error
-        q1_pred = self._qf1(obs, actions)
-        if self._use_two_qfs:
-            q2_pred = self._qf2(obs, actions)
+        def compute_target(q_pred_next):
+            return rewards + (1.-terminals) * self._discount * q_pred_next + terminals * self._terminal_value(rewards, self._discount)
+
+        def compute_mixed_bellman_loss(q_pred, q_pred_next, q_target):
+            q_target_pred = compute_target(q_pred_next)
+            if self._eval_mode=='max':
+                return torch.max((q_pred - q_target)**2, (q_pred - q_target_pred)**2).mean()
+            else:
+                w1, w2 = self._eval_mode
+                return (w1*(q_pred - q_target)**2 + w2*(q_pred -q_target_pred)**2).mean()
+
         with torch.no_grad():  # compute target for regression
             new_next_actions_dist = self.policy(next_obs)[0]
             new_next_actions_pre_tanh, new_next_actions = new_next_actions_dist.rsample_with_pre_tanh_value()
             target_q_values = self._target_qf1(next_obs, new_next_actions)
             if self._use_two_qfs:
                 target_q_values = torch.min(target_q_values, self._target_qf2(next_obs, new_next_actions))
-            q_target = rewards + (1.-terminals) * self._discount * target_q_values.flatten() \
-                       + terminals * self._terminal_value(rewards, self._discount)
+            q_target = compute_target(target_q_values.flatten())
 
-        bellman_qf1_loss = F.mse_loss(q1_pred.flatten(), q_target)
-        bellman_qf2_loss = F.mse_loss(q2_pred.flatten(), q_target) if self._use_two_qfs else torch.Tensor([0.])
+        q1_pred = self._qf1(obs, actions)
+        q1_pred_next = self._qf1(next_obs, new_next_actions)
+        bellman_qf1_loss = compute_mixed_bellman_loss(q1_pred, q1_pred_next, q_target)
+        if self._use_two_qfs:
+            q2_pred = self._qf2(obs, actions)
+            q2_pred_next = self._qf2(next_obs, new_next_actions)
+            bellman_qf2_loss = compute_mixed_bellman_loss(q2_pred, q2_pred_next, q_target)
+        else:
+            bellman_qf2_loss = torch.Tensor([0.])
 
-        bellman_qf_loss = torch.max(bellman_qf1_loss, bellman_qf2_loss)  # for logging
-        self._avg_bellman_error = self._avg_bellman_error*self._stats_avg_rate + bellman_qf_loss.detach()*(1-self._stats_avg_rate)
+        with torch.no_grad():
+            bellman_qf_loss = torch.max(bellman_qf1_loss, bellman_qf2_loss)  # for logging
+            self._avg_bellman_error = self._avg_bellman_error*self._stats_avg_rate + bellman_qf_loss*(1-self._stats_avg_rate)
 
         # Needed in the actor loss
         if not qf_update_only or not warmstart:
@@ -311,7 +328,7 @@ class CAC(RLAlgorithm):
 
             # Autotune the regularization constant to satisfy Bellman constraint
             if self._beta_optimizer is not None:
-                beta_loss = - self._log_beta * (bellman_qf_loss.detach() - self._bellman_constraint)
+                beta_loss = - self._log_beta * (bellman_qf_loss- self._bellman_constraint)
                 self._beta_optimizer.zero_grad()
                 beta_loss.backward()
                 self._beta_optimizer.step()
