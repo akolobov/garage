@@ -339,11 +339,11 @@ class CAC(RLAlgorithm):
                 self._beta_optimizer.step()
                 beta = self._log_beta.exp().detach()
 
-        # Doubling the norm constraint if beta is too large (i.e. infeasible)
-        if self._beta_optimizer is not None and beta >= self._beta_upper_bound:
-            self._norm_constraint *= 2
-            self._log_beta = torch.Tensor([self._init_log_beta]).requires_grad_()
-            self._beta_optimizer = self._optimizer([self._log_beta], lr=self._beta_lr)
+        # # Doubling the norm constraint if beta is too large (i.e. infeasible)
+        # if self._beta_optimizer is not None and beta >= self._beta_upper_bound:
+        #     self._norm_constraint *= 2
+        #     self._log_beta = torch.Tensor([self._init_log_beta]).requires_grad_()
+        #     self._beta_optimizer = self._optimizer([self._log_beta], lr=self._beta_lr)
 
         # Prevent exploding gradient due to auto tuning
         # min_qf_loss + beta * bellman_qf_loss
