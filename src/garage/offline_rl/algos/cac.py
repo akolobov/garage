@@ -182,7 +182,8 @@ class CAC(RLAlgorithm):
             self._init_log_beta = np.log(1.0)
             self._log_beta = torch.Tensor([self._init_log_beta]).requires_grad_()  # i.e. beta=1
             self._beta_optimizer = optimizer([self._log_beta], lr=self._beta_lr)
-            self._beta_upper_bound = 1000  # threshold to double the norm constraint
+            self._beta_upper_bound = 100  # threshold to double the norm constraint
+            self._constraint_delta = 0.5
 
         # SAC parameters
         self._qf1 = qf1
@@ -343,6 +344,7 @@ class CAC(RLAlgorithm):
 
             # Autotune the regularization constant to satisfy Bellman constraint
             if self._beta_optimizer is not None:
+                # bellman_qf_loss = torch.max(q1_pred_error, q2_pred_error)
                 beta_loss = - self._log_beta * (bellman_qf_loss- self._bellman_constraint)
                 self._beta_optimizer.zero_grad()
                 beta_loss.backward()
@@ -350,10 +352,10 @@ class CAC(RLAlgorithm):
                 beta = self._log_beta.exp().detach()
 
         # # Doubling the norm constraint if beta is too large (i.e. infeasible)
-        # if self._beta_optimizer is not None and beta >= self._beta_upper_bound:
-        #     self._norm_constraint *= 2
-        #     self._log_beta = torch.Tensor([self._init_log_beta]).requires_grad_()
-        #     self._beta_optimizer = self._optimizer([self._log_beta], lr=self._beta_lr)
+        if self._beta_optimizer is not None and beta >= self._beta_upper_bound:
+            self._bellman_constraint *= 1+self._constraint_delta
+            self._log_beta = torch.Tensor([self._init_log_beta]).requires_grad_()
+            self._beta_optimizer = self._optimizer([self._log_beta], lr=self._beta_lr)
 
         # Prevent exploding gradient due to auto tuning
         # min_qf_loss + beta * bellman_qf_loss
