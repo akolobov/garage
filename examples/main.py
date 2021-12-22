@@ -67,6 +67,7 @@ def train_func(ctxt=None,
                use_two_qfs=True,  # whether to use two q function
                optimizer='Adam',
                q_eval_mode='max',
+               cons_inc_rate=0.0,
                # Compute parameters
                seed=0,
                n_workers=1,  # number of workers for data collection
@@ -190,6 +191,7 @@ def train_func(ctxt=None,
             n_warmstart_steps=n_warmstart_steps,
             optimizer=optimizer,
             q_eval_mode=q_eval_mode,
+            cons_inc_rate=cons_inc_rate,
         )
 
     algo_config.update(extra_algo_config)
@@ -225,7 +227,7 @@ def run(log_root='.',
                                                   'beta', 'discount', 'norm_constraint',
                                                   'policy_lr', 'value_lr', 'target_update_tau',
                                                   'n_qf_steps', 'use_two_qfs', 'optimizer',
-                                                  'value_activation', 'fixed_alpha', 'q_eval_mode',
+                                                  'value_activation', 'fixed_alpha', 'q_eval_mode', 'cons_inc_rate'
                                                   'n_warmstart_steps', 'seed'])
     train_kwargs['return_mode'] = 'full'
 
@@ -298,6 +300,7 @@ if __name__=='__main__':
     parser.add_argument('--optimizer', type=str, default='Adam')
     parser.add_argument('--value_activation', type=str, default='LeakyReLU')
     parser.add_argument('--q_eval_mode', type=str, default='max')
+    parser.add_argument('--cons_inc_rate', type=float, default=0.0)
 
     train_kwargs = vars(parser.parse_args())
     run(**train_kwargs)

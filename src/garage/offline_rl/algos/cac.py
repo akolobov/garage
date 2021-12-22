@@ -141,6 +141,7 @@ class CAC(RLAlgorithm):
             use_two_qfs=True,
             stats_avg_rate=0.99,
             q_eval_mode='max', # 'max' 'w1_w2'
+            cons_inc_rate=0.0,
             ):
 
         n_qf_steps = max(1, n_qf_steps)
@@ -183,7 +184,7 @@ class CAC(RLAlgorithm):
             self._log_beta = torch.Tensor([self._init_log_beta]).requires_grad_()  # i.e. beta=1
             self._beta_optimizer = optimizer([self._log_beta], lr=self._beta_lr)
             self._beta_upper_bound = 100  # threshold to double the norm constraint
-            self._constraint_delta = 0.5
+            self._cons_inc_rate = cons_inc_rate
 
         # SAC parameters
         self._qf1 = qf1
@@ -352,8 +353,8 @@ class CAC(RLAlgorithm):
                 beta = self._log_beta.exp().detach()
 
         # # Doubling the norm constraint if beta is too large (i.e. infeasible)
-        if self._beta_optimizer is not None and beta >= self._beta_upper_bound:
-            self._bellman_constraint *= 1+self._constraint_delta
+        if self._beta_optimizer is not None and beta >= self._beta_upper_bound and self._cons_inc_rate>0:
+            self._bellman_constraint *= 1+self._cons_inc_rate
             self._log_beta = torch.Tensor([self._init_log_beta]).requires_grad_()
             self._beta_optimizer = self._optimizer([self._log_beta], lr=self._beta_lr)
 
