@@ -291,18 +291,18 @@ class CAC(RLAlgorithm):
 
             target_error = (q_pred - q_target)**2
             mean_target_error = target_error.mean()
-            pred_error = (q_pred - q_target_pred)**2
-            mean_pred_error = pred_error.mean()
+            td_error = (q_pred - q_target_pred)**2
+            mean_td_error = td_error.mean()
 
             if self._q_eval_mode=='max':
-                loss = torch.max(target_error, pred_error).mean()
+                loss = torch.max(target_error, td_error).mean()
             elif self._q_eval_mode=='bmax':
-                loss = torch.max(mean_target_error, mean_pred_error)
+                loss = torch.max(mean_target_error, mean_td_error)
             else:
                 w1, w2 = self._q_eval_mode
-                loss = w1*mean_target_error+ w2*mean_pred_error
+                loss = w1*mean_target_error+ w2*mean_td_error
 
-            return loss, mean_target_error, mean_pred_error
+            return loss, mean_target_error, mean_td_error
 
         with torch.no_grad():  # compute target for regression
             new_next_actions_dist = self.policy(next_obs)[0]
@@ -314,17 +314,18 @@ class CAC(RLAlgorithm):
 
         q1_pred = self._qf1(obs, actions).flatten()
         q1_pred_next = self._qf1(next_obs, new_next_actions).flatten()
-        bellman_qf1_loss, q1_target_error, q1_pred_error = compute_mixed_bellman_loss(q1_pred, q1_pred_next, q_target)
+        bellman_qf1_loss, q1_target_error, q1_td_error = compute_mixed_bellman_loss(q1_pred, q1_pred_next, q_target)
 
         if self._use_two_qfs:
             q2_pred = self._qf2(obs, actions).flatten()
             q2_pred_next = self._qf2(next_obs, new_next_actions).flatten()
-            bellman_qf2_loss, q2_target_error, q2_pred_error = compute_mixed_bellman_loss(q2_pred, q2_pred_next, q_target)
+            bellman_qf2_loss, q2_target_error, q2_td_error = compute_mixed_bellman_loss(q2_pred, q2_pred_next, q_target)
         else:
-            bellman_qf2_loss = q2_target_error = q2_pred_error = torch.Tensor([0.])
+            bellman_qf2_loss = q2_target_error = q2_td_error = torch.Tensor([0.])
 
         with torch.no_grad():
-            bellman_qf_loss = torch.max(bellman_qf1_loss, bellman_qf2_loss)  # for logging
+            # bellman_qf_loss = torch.max(bellman_qf1_loss, bellman_qf2_loss)  # for logging
+            bellman_qf_loss = torch.max(q1_td_error, q2_td_error)  # measure the TD error
             self._avg_bellman_error = self._avg_bellman_error*self._stats_avg_rate + bellman_qf_loss*(1-self._stats_avg_rate)
 
         # Needed in the actor loss
@@ -345,7 +346,6 @@ class CAC(RLAlgorithm):
 
             # Autotune the regularization constant to satisfy Bellman constraint
             if self._beta_optimizer is not None:
-                # bellman_qf_loss = torch.max(q1_pred_error, q2_pred_error)
                 beta_loss = - self._log_beta * (bellman_qf_loss- self._bellman_constraint)
                 self._beta_optimizer.zero_grad()
                 beta_loss.backward()
@@ -462,9 +462,9 @@ class CAC(RLAlgorithm):
                     q_target=q_target.mean(),
                     norm_constriant=self._norm_constraint,
                     q1_target_error=q1_target_error,
-                    q1_pred_error=q1_pred_error,
+                    q1_td_error=q1_td_error,
                     q2_target_error=q2_target_error,
-                    q2_pred_error=q2_pred_error,
+                    q2_td_error=q2_td_error,
                     )
 
         # Debug
