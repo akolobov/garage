@@ -42,7 +42,7 @@ def normalized_sum(loss, reg, w):
 def l2_projection(constraint):
     @torch.no_grad()
     def fn(module):
-        if hasattr(module, 'weight'):
+        if hasattr(module, 'weight') and constraint>0:
             w = module.weight
             norm = torch.norm(w)
             w.mul_(torch.clip(constraint/norm, max=1))
@@ -183,7 +183,7 @@ class CAC(RLAlgorithm):
             self._init_log_beta = np.log(1.0)
             self._log_beta = torch.Tensor([self._init_log_beta]).requires_grad_()  # i.e. beta=1
             self._beta_optimizer = optimizer([self._log_beta], lr=self._beta_lr)
-            self._beta_upper_bound = 100  # threshold to double the norm constraint
+            self._beta_upper_bound = 10000  # threshold to double the norm constraint
             self._cons_inc_rate = cons_inc_rate
 
         # SAC parameters
@@ -224,9 +224,9 @@ class CAC(RLAlgorithm):
         self._policy_optimizer = self._optimizer(self.policy.parameters(),
                                                  lr=self._bc_policy_lr) #  lr=self._policy_lr)
         self._qf1_optimizer = self._optimizer(self._qf1.parameters(),
-                                              lr=self._qf_lr)
+                                              lr=self._qf_lr, weight_decay=-self._norm_constraint if self._norm_constraint<=0 else 0.)
         self._qf2_optimizer = self._optimizer(self._qf2.parameters(),
-                                              lr=self._qf_lr)
+                                              lr=self._qf_lr, weight_decay=-self._norm_constraint if self._norm_constraint<=0 else 0.)
 
         # automatic entropy coefficient tuning
         self._use_automatic_entropy_tuning = fixed_alpha is None
