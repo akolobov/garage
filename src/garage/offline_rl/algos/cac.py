@@ -224,9 +224,9 @@ class CAC(RLAlgorithm):
         self._policy_optimizer = self._optimizer(self.policy.parameters(),
                                                  lr=self._bc_policy_lr) #  lr=self._policy_lr)
         self._qf1_optimizer = self._optimizer(self._qf1.parameters(),
-                                              lr=self._qf_lr, weight_decay=-self._norm_constraint if self._norm_constraint<=0 else 0.)
+                                              lr=self._qf_lr)
         self._qf2_optimizer = self._optimizer(self._qf2.parameters(),
-                                              lr=self._qf_lr, weight_decay=-self._norm_constraint if self._norm_constraint<=0 else 0.)
+                                              lr=self._qf_lr)
 
         # automatic entropy coefficient tuning
         self._use_automatic_entropy_tuning = fixed_alpha is None
@@ -360,19 +360,35 @@ class CAC(RLAlgorithm):
 
         # Prevent exploding gradient due to auto tuning
         # min_qf_loss + beta * bellman_qf_loss
+        # qf1_loss = min_qf1_loss + beta * bellman_qf1_loss
+        # qf2_loss = min_qf2_loss + beta * bellman_qf2_loss
         qf1_loss = normalized_sum(min_qf1_loss, bellman_qf1_loss, beta)
         qf2_loss = normalized_sum(min_qf2_loss, bellman_qf2_loss, beta)
 
-        self._qf1_optimizer.zero_grad()
-        qf1_loss.backward()
-        self._qf1_optimizer.step()
-        self._qf1.apply(l2_projection(self._norm_constraint))
+        # L2 regularization
+        if self._norm_constraint<0:
+            def weight_l2(model):
+                reg = 0.
+                for name, param in model.named_parameters():
+                    if 'weight' in name:
+                        reg += torch.norm(param)**2
+                return reg
 
-        if self._use_two_qfs:
-            self._qf2_optimizer.zero_grad()
-            qf2_loss.backward()
-            self._qf2_optimizer.step()
-            self._qf2.apply(l2_projection(self._norm_constraint))
+            qf1_loss += -self._norm_constraint * weight_l2(self._qf1)
+            qf2_loss += -self._norm_constraint * weight_l2(self._qf2)
+
+        if beta>0 or not warmstart:
+            # no warmup for beta=0; otherwise, numerical singulartiy might happen due to weight decay.
+            self._qf1_optimizer.zero_grad()
+            qf1_loss.backward()
+            self._qf1_optimizer.step()
+            self._qf1.apply(l2_projection(self._norm_constraint))
+
+            if self._use_two_qfs:
+                self._qf2_optimizer.zero_grad()
+                qf2_loss.backward()
+                self._qf2_optimizer.step()
+                self._qf2.apply(l2_projection(self._norm_constraint))
 
         if qf_update_only:
             return
