@@ -15,6 +15,86 @@ from garage.offline_rl.algos import CAC
 from garage.offline_rl.rl_utils import train_agent, get_sampler, setup_gpu, get_algo, get_log_dir_name, load_algo
 from garage.offline_rl.trainer import Trainer
 
+
+def qlearning_dataset(env, dataset=None, terminate_on_end=False, **kwargs):
+    # Add timeout and timestep keys
+    """
+    Returns datasets formatted for use by standard Q-learning algorithms,
+    with observations, actions, next_observations, rewards, and a terminal
+    flag.
+    Args:
+        env: An OfflineEnv object.
+        dataset: An optional dataset to pass in for processing. If None,
+            the dataset will default to env.get_dataset()
+        terminate_on_end (bool): Set done=True on the last timestep
+            in a trajectory. Default is False, and will discard the
+            last timestep in each trajectory.
+        **kwargs: Arguments to pass to env.get_dataset().
+    Returns:
+        A dictionary containing keys:
+            observations: An N x dim_obs array of observations.
+            actions: An N x dim_action array of actions.
+            next_observations: An N x dim_obs array of next observations.
+            rewards: An N-dim float array of rewards.
+            terminals: An N-dim boolean array of "done" or episode termination flags.
+    """
+    if dataset is None:
+        dataset = env.get_dataset(**kwargs)
+
+    N = dataset['rewards'].shape[0]
+    obs_ = []
+    next_obs_ = []
+    action_ = []
+    reward_ = []
+    done_ = []
+    timestep_ = []
+    timeout_ = []
+
+    # The newer version of the dataset adds an explicit
+    # timeouts field. Keep old method for backwards compatability.
+    use_timeouts = False
+    if 'timeouts' in dataset:
+        use_timeouts = True
+
+    episode_step = 0
+    for i in range(N-1):
+        obs = dataset['observations'][i].astype(np.float32)
+        new_obs = dataset['observations'][i+1].astype(np.float32)
+        action = dataset['actions'][i].astype(np.float32)
+        reward = dataset['rewards'][i].astype(np.float32)
+        done_bool = bool(dataset['terminals'][i])
+        timestep = episode_step
+
+        if use_timeouts:
+            final_timestep = dataset['timeouts'][i]
+        else:
+            final_timestep = (episode_step == env._max_episode_steps - 1)
+        if (not terminate_on_end) and final_timestep:
+            # Skip this transition and don't apply terminals on the last step of an episode
+            episode_step = 0
+            continue
+        if done_bool or final_timestep:
+            episode_step = 0
+
+        obs_.append(obs)
+        next_obs_.append(new_obs)
+        action_.append(action)
+        reward_.append(reward)
+        done_.append(done_bool)
+        timestep_.append(timestep)
+        timeout_.append(final_timestep)
+        episode_step += 1
+
+    return {
+        'observations': np.array(obs_),
+        'actions': np.array(action_),
+        'next_observations': np.array(next_obs_),
+        'rewards': np.array(reward_),
+        'terminals': np.array(done_),
+        'timesteps': np.array(timestep_),
+        'timeouts': np.array(timeout_)
+    }
+
 def load_d4rl_data_as_buffer(dataset, replay_buffer):
     assert isinstance(replay_buffer, PathBuffer)
     replay_buffer.add_path(
@@ -23,6 +103,8 @@ def load_d4rl_data_as_buffer(dataset, replay_buffer):
              reward=dataset['rewards'].reshape(-1, 1),
              next_observation=dataset['next_observations'],
              terminal=dataset['terminals'].reshape(-1,1),
+             timestep=dataset['timesteps'].reshape(-1,1),
+             timeout=dataset['timeouts'].reshape(-1,1),
     ))
 
 def train_func(ctxt=None,
@@ -68,6 +150,7 @@ def train_func(ctxt=None,
                optimizer='Adam',
                q_eval_mode='max',
                cons_inc_rate=0.0,
+               weigh_dist=False,
                # Compute parameters
                seed=0,
                n_workers=1,  # number of workers for data collection
@@ -90,8 +173,9 @@ def train_func(ctxt=None,
     while dataset is None:
         try:
             d4rl_env = gym.make(env_name)  # d4rl env
-            dataset = d4rl.qlearning_dataset(d4rl_env)
+            dataset = qlearning_dataset(d4rl_env)
         except (HTTPError, OSError):
+            print('Unable to download dataset. Retry.')
             pass
 
     # Initialize replay buffer and gymenv
@@ -192,6 +276,7 @@ def train_func(ctxt=None,
             optimizer=optimizer,
             q_eval_mode=q_eval_mode,
             cons_inc_rate=cons_inc_rate,
+            weigh_dist=weigh_dist,
         )
 
     algo_config.update(extra_algo_config)
@@ -227,7 +312,8 @@ def run(log_root='.',
                                                   'beta', 'discount', 'norm_constraint',
                                                   'policy_lr', 'value_lr', 'target_update_tau',
                                                   'n_qf_steps', 'use_two_qfs', 'optimizer',
-                                                  'value_activation', 'fixed_alpha', 'q_eval_mode', 'cons_inc_rate'
+                                                  'value_activation', 'fixed_alpha', 'q_eval_mode', #'cons_inc_rate',
+                                                  'weigh_dist',
                                                   'n_warmstart_steps', 'seed'])
     train_kwargs['return_mode'] = 'full'
 
@@ -301,6 +387,7 @@ if __name__=='__main__':
     parser.add_argument('--value_activation', type=str, default='LeakyReLU')
     parser.add_argument('--q_eval_mode', type=str, default='max')
     parser.add_argument('--cons_inc_rate', type=float, default=0.0)
+    parser.add_argument('--weigh_dist', type=str2bool, default=False)
 
     train_kwargs = vars(parser.parse_args())
     run(**train_kwargs)

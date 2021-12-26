@@ -142,6 +142,7 @@ class CAC(RLAlgorithm):
             stats_avg_rate=0.99,
             q_eval_mode='max', # 'max' 'w1_w2'
             cons_inc_rate=0.0,
+            weigh_dist=False,
             ):
 
         n_qf_steps = max(1, n_qf_steps)
@@ -157,7 +158,7 @@ class CAC(RLAlgorithm):
         self._n_qf_steps = n_qf_steps
         self._norm_constraint = norm_constraint
         self._stats_avg_rate = stats_avg_rate
-
+        self._weigh_dist = weigh_dist
         print(type(q_eval_mode), q_eval_mode)
         self._q_eval_mode = [float(w) for w in q_eval_mode.split('_')] if '_' in q_eval_mode else  q_eval_mode
 
@@ -279,6 +280,8 @@ class CAC(RLAlgorithm):
         actions = samples_data['action']
         rewards = samples_data['reward'].flatten() * self._reward_scale
         terminals =  samples_data['terminal'].flatten()
+        timeouts =  samples_data['timeout'].flatten()
+        timesteps =  samples_data['timestep'].flatten()
 
         # Bellman error
         def compute_target(q_pred_next):
@@ -337,12 +340,13 @@ class CAC(RLAlgorithm):
         beta_loss = min_qf1_loss = min_qf2_loss = 0
         beta = self._log_beta.exp().detach()  # for logging
         if not warmstart:
+            dist_weight = (1-self._discount**(timesteps+1)).reshape(-1,1) if self._weigh_dist else torch.ones_like(q1_pred)
             # Compute value difference
             q1_new_actions = self._qf1(obs, new_actions.detach())
-            min_qf1_loss = (q1_new_actions - q1_pred).mean()
+            min_qf1_loss = ((q1_new_actions - q1_pred)*dist_weight).mean()
             if self._use_two_qfs:
                 q2_new_actions = self._qf2(obs, new_actions.detach())
-                min_qf2_loss = (q2_new_actions - q2_pred).mean()
+                min_qf2_loss = ((q2_new_actions - q2_pred)*dist_weight).mean()
 
             # Autotune the regularization constant to satisfy Bellman constraint
             if self._beta_optimizer is not None:
