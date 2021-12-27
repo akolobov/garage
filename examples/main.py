@@ -185,23 +185,22 @@ def train_func(ctxt=None,
 
     # Set the right terminal value (roughly)
     terminal_value = None
-    if 'kitchen' in env_name:
-        good_indices = np.logical_not(dataset['terminals']*(dataset['rewards']!=4))
-        for k in dataset.keys():
-            dataset[k] = dataset[k][good_indices]
-        dataset['rewards'] -= 4
-        # or terminal_value = lambda r, gamma : 4/ (1-gamma)
+    # if 'kitchen' in env_name:
+    #     good_indices = np.logical_not(dataset['terminals']*(dataset['rewards']!=4))
+    #     for k in dataset.keys():
+    #         dataset[k] = dataset[k][good_indices]
+    #     dataset['rewards'] -= 4
+    #     # or terminal_value = lambda r, gamma : 4/ (1-gamma)
 
-    load_d4rl_data_as_buffer(dataset, replay_buffer)
+    # load_d4rl_data_as_buffer(dataset, replay_buffer)
 
-    # Normalize the rewards to be in [-1, 1]
-    if normalize_reward:
-        r_max = np.abs(np.max(dataset['rewards']))
-        r_min = np.abs(np.min(dataset['rewards']))
-        reward_scale = 1./(max(r_min, r_max) + 1e-6)
-    else:
-        reward_scale = 1.0
-
+    # # Normalize the rewards to be in [-1, 1]
+    # if normalize_reward:
+    #     r_max = np.abs(np.max(dataset['rewards']))
+    #     r_min = np.abs(np.min(dataset['rewards']))
+    #     reward_scale = 1./(max(r_min, r_max) + 1e-6)
+    # else:
+    #     reward_scale = 1.0
 
 
     # Initialize the algorithm
