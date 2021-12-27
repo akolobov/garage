@@ -151,6 +151,7 @@ def train_func(ctxt=None,
                q_eval_mode='max',
                cons_inc_rate=0.0,
                weigh_dist=False,
+               q_eval_loss='MSELoss',
                # Compute parameters
                seed=0,
                n_workers=1,  # number of workers for data collection
@@ -277,6 +278,7 @@ def train_func(ctxt=None,
             q_eval_mode=q_eval_mode,
             cons_inc_rate=cons_inc_rate,
             weigh_dist=weigh_dist,
+            q_eval_loss=q_eval_loss,
         )
 
     algo_config.update(extra_algo_config)
@@ -310,10 +312,11 @@ def run(log_root='.',
     if train_kwargs['algo']=='CAC':
         log_dir = get_log_dir_name(train_kwargs, [
                                                   'beta', 'discount', 'norm_constraint',
-                                                  'policy_lr', 'value_lr', 'target_update_tau',
-                                                  'n_qf_steps', 'use_two_qfs', 'optimizer',
-                                                  'value_activation', 'fixed_alpha', 'q_eval_mode', #'cons_inc_rate',
-                                                  'weigh_dist',
+                                                  'policy_lr', 'value_lr',
+                                                   # 'target_update_tau', 'n_qf_steps',
+                                                  'use_two_qfs',
+                                                  # 'optimizer', 'value_activation', 'fixed_alpha',
+                                                  'q_eval_mode', 'weigh_dist', 'q_eval_loss',
                                                   'n_warmstart_steps', 'seed'])
     train_kwargs['return_mode'] = 'full'
 
@@ -386,8 +389,11 @@ if __name__=='__main__':
     parser.add_argument('--optimizer', type=str, default='Adam')
     parser.add_argument('--value_activation', type=str, default='LeakyReLU')
     parser.add_argument('--q_eval_mode', type=str, default='max')
+    parser.add_argument('--q_eval_loss', type=str, default='MSELoss')
     parser.add_argument('--cons_inc_rate', type=float, default=0.0)
     parser.add_argument('--weigh_dist', type=str2bool, default=False)
+
+
 
     train_kwargs = vars(parser.parse_args())
     run(**train_kwargs)

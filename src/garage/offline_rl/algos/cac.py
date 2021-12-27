@@ -143,6 +143,7 @@ class CAC(RLAlgorithm):
             q_eval_mode='max', # 'max' 'w1_w2'
             cons_inc_rate=0.0,
             weigh_dist=False,
+            q_eval_loss='SmoothL1Loss', # 'MSELoss'
             ):
 
         n_qf_steps = max(1, n_qf_steps)
@@ -159,6 +160,7 @@ class CAC(RLAlgorithm):
         self._norm_constraint = norm_constraint
         self._stats_avg_rate = stats_avg_rate
         self._weigh_dist = weigh_dist
+        self._q_eval_loss = eval('torch.nn.'+q_eval_loss)(reduction='none')
         print(type(q_eval_mode), q_eval_mode)
         self._q_eval_mode = [float(w) for w in q_eval_mode.split('_')] if '_' in q_eval_mode else  q_eval_mode
 
@@ -291,10 +293,9 @@ class CAC(RLAlgorithm):
         def compute_mixed_bellman_loss(q_pred, q_pred_next, q_target):
             assert q_pred.shape == q_pred_next.shape == q_target.shape
             q_target_pred = compute_target(q_pred_next)
-
-            target_error = (q_pred - q_target)**2
+            target_error = self._q_eval_loss(q_pred, q_target)
+            td_error = self._q_eval_loss(q_pred, q_target_pred)
             mean_target_error = target_error.mean()
-            td_error = (q_pred - q_target_pred)**2
             mean_td_error = td_error.mean()
 
             if self._q_eval_mode=='max':
