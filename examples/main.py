@@ -194,11 +194,11 @@ def train_func(ctxt=None,
 
     load_d4rl_data_as_buffer(dataset, replay_buffer)
 
-    # Normalize the rewards to be in [-10, 10]
+    # Normalize the rewards to be in [-1, 1]
     if normalize_reward:
         r_max = np.abs(np.max(dataset['rewards']))
         r_min = np.abs(np.min(dataset['rewards']))
-        reward_scale = 10./(max(r_min, r_max) + 1e-6)
+        reward_scale = 1./(max(r_min, r_max) + 1e-6)
     else:
         reward_scale = 1.0
 
