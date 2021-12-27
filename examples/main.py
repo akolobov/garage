@@ -192,7 +192,7 @@ def train_func(ctxt=None,
     #     dataset['rewards'] -= 4
     #     # or terminal_value = lambda r, gamma : 4/ (1-gamma)
 
-    # load_d4rl_data_as_buffer(dataset, replay_buffer)
+    load_d4rl_data_as_buffer(dataset, replay_buffer)
 
     # # Normalize the rewards to be in [-1, 1]
     # if normalize_reward:
@@ -201,6 +201,7 @@ def train_func(ctxt=None,
     #     reward_scale = 1./(max(r_min, r_max) + 1e-6)
     # else:
     #     reward_scale = 1.0
+    reward_scale = 1.0
 
 
     # Initialize the algorithm

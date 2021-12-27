@@ -161,7 +161,11 @@ class CAC(RLAlgorithm):
         self._stats_avg_rate = stats_avg_rate
         self._weigh_dist = weigh_dist
         self._q_eval_loss = eval('torch.nn.'+q_eval_loss)(reduction='none')
-        print(type(q_eval_mode), q_eval_mode)
+        if q_eval_loss=='SmoothL1Loss':
+            _q_eval_loss = self._q_eval_loss
+            self._q_eval_loss = lambda *args, **kwargs : _q_eval_loss(*args, **kwargs)*2.0  # so it matches the unit in the MSE loss.
+
+
         self._q_eval_mode = [float(w) for w in q_eval_mode.split('_')] if '_' in q_eval_mode else  q_eval_mode
 
         # terminal value of of the absorbing state
