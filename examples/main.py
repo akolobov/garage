@@ -125,7 +125,7 @@ def train_func(ctxt=None,
                policy_activation='ReLU',
                policy_init_std=1.0,
                value_hidden_sizes=(256, 256, 256),
-               value_activation='LeakyReLU',
+               value_activation='ReLU',
                min_std=1e-5,
                # Algorithm parameters
                discount=0.99,
@@ -148,10 +148,11 @@ def train_func(ctxt=None,
                norm_constraint=100,
                use_two_qfs=True,  # whether to use two q function
                optimizer='Adam',
-               q_eval_mode='max',
-               cons_inc_rate=0.0,
-               weigh_dist=False,
+               q_eval_mode='0.5_0.5',
+               cons_inc_rate=0.0,  # XXX deprecated
+               weigh_dist=False,  # XXX deprecated
                q_eval_loss='MSELoss',
+               beta_upper_bound=1e6,
                # Compute parameters
                seed=0,
                n_workers=1,  # number of workers for data collection
@@ -279,6 +280,7 @@ def train_func(ctxt=None,
             cons_inc_rate=cons_inc_rate,
             weigh_dist=weigh_dist,
             q_eval_loss=q_eval_loss,
+            beta_upper_bound=beta_upper_bound,
         )
 
     algo_config.update(extra_algo_config)
@@ -316,7 +318,8 @@ def run(log_root='.',
                                                    # 'target_update_tau', 'n_qf_steps',
                                                   'use_two_qfs',
                                                   # 'optimizer', 'value_activation', 'fixed_alpha',
-                                                  'q_eval_mode', 'weigh_dist', 'q_eval_loss',
+                                                  'q_eval_mode', # 'weigh_dist',
+                                                  'q_eval_loss',
                                                   'n_warmstart_steps', 'seed'])
     train_kwargs['return_mode'] = 'full'
 
@@ -387,8 +390,8 @@ if __name__=='__main__':
     parser.add_argument('--use_deterministic_evaluation', type=str2bool, default=True)
     parser.add_argument('--use_two_qfs', type=str2bool, default=True)
     parser.add_argument('--optimizer', type=str, default='Adam')
-    parser.add_argument('--value_activation', type=str, default='LeakyReLU')
-    parser.add_argument('--q_eval_mode', type=str, default='max')
+    parser.add_argument('--value_activation', type=str, default='ReLU')
+    parser.add_argument('--q_eval_mode', type=str, default='0.5_0.5')
     parser.add_argument('--q_eval_loss', type=str, default='MSELoss')
     parser.add_argument('--cons_inc_rate', type=float, default=0.0)
     parser.add_argument('--weigh_dist', type=str2bool, default=False)
