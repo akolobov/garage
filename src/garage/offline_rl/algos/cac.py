@@ -318,18 +318,18 @@ class CAC(RLAlgorithm):
         q1_pred_next = self._qf1(next_obs, new_next_actions).flatten()
         bellman_qf1_loss, q1_target_error, q1_td_error = compute_mixed_bellman_loss(q1_pred, q1_pred_next, q_target)
 
+        bellman_qf2_loss = q2_target_error = q2_td_error = torch.Tensor([0.])
         if self._use_two_qfs:
             q2_pred = self._qf2(obs, actions).flatten()
             q2_pred_next = self._qf2(next_obs, new_next_actions).flatten()
             bellman_qf2_loss, q2_target_error, q2_td_error = compute_mixed_bellman_loss(q2_pred, q2_pred_next, q_target)
-        else:
-            bellman_qf2_loss = q2_target_error = q2_td_error = torch.Tensor([0.])
 
         if not qf_update_only or not warmstart:
             # These samples will be used for the actor update too, so they need to be traced.
             new_actions_dist = self.policy(obs)[0]
             new_actions_pre_tanh, new_actions = new_actions_dist.rsample_with_pre_tanh_value()
 
+        beta_loss = gan_qf1_loss = gan_qf2_loss = 0
         if not warmstart:  # Compute beta_loss, gan_qf1_loss, gan_qf2_loss
             dist_weight = (1-self._discount**(timesteps+1)).reshape(-1,1) if self._weigh_dist else torch.ones_like(q1_pred)
             # Compute value difference
@@ -350,8 +350,6 @@ class CAC(RLAlgorithm):
                 with torch.no_grad():
                     self._log_beta1.clamp_(max=self._log_beta_upper_bound)
                     self._log_beta2.clamp_(max=self._log_beta_upper_bound)
-        else:
-            beta_loss = gan_qf1_loss = gan_qf2_loss = 0
 
         with torch.no_grad():
             beta1 = self._log_beta1.exp()
