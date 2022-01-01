@@ -391,8 +391,8 @@ class CAC(RLAlgorithm):
                 Beta2 = self._log_Beta2.exp()
             bellman_qf1_loss = beta1 * q1_td_error + Beta1 * q1_target_error  # logging
             bellman_qf2_loss = beta2 * q2_td_error + Beta2 * q2_target_error
-            qf1_loss = gan_qf1_loss + bellman_qf1_loss
-            qf2_loss = gan_qf2_loss + bellman_qf2_loss
+            qf1_loss = (gan_qf1_loss + bellman_qf1_loss) / torch.max(torch.Tensor([1, Beta1, beta1]))
+            qf2_loss = gan_qf2_loss + bellman_qf2_loss / torch.max(torch.Tensor([1, Beta2, beta2]))
         else:
             qf1_loss = normalized_sum(gan_qf1_loss, bellman_qf1_loss, beta1)
             qf2_loss = normalized_sum(gan_qf2_loss, bellman_qf2_loss, beta2)
