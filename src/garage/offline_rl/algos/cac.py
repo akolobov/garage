@@ -124,6 +124,7 @@ class CAC(RLAlgorithm):
             use_deterministic_evaluation=True,
             # CAC parameters
             n_warmstart_steps=20000,
+            max_n_warmstart_steps=200000,
             beta=-1.0,  # the regularization coefficient in front of the Bellman error
             n_qf_steps=1,
             norm_constraint=100,
@@ -150,8 +151,10 @@ class CAC(RLAlgorithm):
 
         ## CAC parameters
         self._n_warmstart_steps = n_warmstart_steps
+        self._max_n_warmstart_steps = max_n_warmstart_steps
         self._n_qf_steps = n_qf_steps
         self._n_updates_performed = 0 # Counter of number of grad steps performed
+        self._cac_learning=False
         self._norm_constraint = norm_constraint
         self._stats_avg_rate = stats_avg_rate
         self._weigh_dist = weigh_dist
@@ -510,6 +513,7 @@ class CAC(RLAlgorithm):
                     q1_td_error=q1_td_error,
                     q2_target_error=q2_target_error,
                     q2_td_error=q2_td_error,
+                    bellman_constraint=self._bellman_constraint,
                     )
         if self._Beta_optimizer is not None:
             log_info['Beta1'] = Beta1
@@ -705,8 +709,18 @@ class CAC(RLAlgorithm):
         del itr
         del paths
         if self.replay_buffer.n_transitions_stored >= self._min_buffer_size:
+
             warmstart = self._n_updates_performed<self._n_warmstart_steps
-            if self._n_updates_performed==self._n_warmstart_steps:
+            if self._beta_optimizer is not None and not warmstart and not self._cac_learning: # a proposal to turn off warmstart is made
+                # for constrained version, we need to check if we need to run the warmstart longer to satisfy the constraint.
+                warmstart = self._avg_bellman_error >= self._bellman_constraint \
+                             or self._n_updates_performed <= 10/(1-self._stats_avg_rate)  # time for self._avg_bellman_error to be meaningful
+                if warmstart and self._n_updates_performed >=self._max_n_warmstart_steps:
+                    warmstart = False  # reached the maximum updates
+                    self._bellman_constraint=self._avg_bellman_error
+
+            if not warmstart and not self._cac_learning:  # self._n_updates_performed==self._n_warmstart_steps:
+                self._cac_learning = True
                 # Reset optimizers since the objective changes
                 if self._use_automatic_entropy_tuning:
                     self._log_alpha = torch.Tensor([self._initial_log_entropy]).requires_grad_().to(self._log_alpha.device)
