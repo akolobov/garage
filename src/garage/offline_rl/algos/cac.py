@@ -130,7 +130,7 @@ class CAC(RLAlgorithm):
             terminal_value=None,
             use_two_qfs=True,
             stats_avg_rate=0.99, # for logging
-            q_eval_mode='0.5_0.5', # 'max' 'w1_w2'
+            q_eval_mode='0.5_0.5', # 'max' 'w1_w2', 'adaptive'
             cons_inc_rate=0.0,  # XXX deprecated
             weigh_dist=False,  # XXX deprecated
             q_eval_loss='MSELoss', # 'MSELoss', 'SmoothL1Loss'
@@ -184,6 +184,16 @@ class CAC(RLAlgorithm):
             self._beta_optimizer = optimizer([self._log_beta1, self._log_beta2], lr=self._beta_lr)
             self._log_beta_upper_bound = np.log(beta_upper_bound)  # threshold to double the norm constraint
             self._cons_inc_rate = cons_inc_rate
+
+        if self._q_eval_mode == 'adaptive':
+            assert self._beta_optimizer is not None, "Adaptive q_eval_mode can only be used in the constrained version."  # beta needs to be tuned too
+            self._log_Beta1 = torch.Tensor([self._init_log_beta]).requires_grad_()
+            self._log_Beta2 = torch.Tensor([self._init_log_beta]).requires_grad_()
+            self._Beta_optimizer = optimizer([self._log_Beta1, self._log_Beta2], lr=self._beta_lr)
+            self._log_Beta_upper_bound = np.log(beta_upper_bound)  # threshold to double the norm cons
+        else:
+            self._log_Beta1 = self._log_Beta2 = torch.Tensor([np.log(0.)])  # not used
+            self._Beta_optimizer = None
 
         #############################################################################################
         # SAC parameters
@@ -295,11 +305,12 @@ class CAC(RLAlgorithm):
             td_error = self._q_eval_loss(q_pred, q_target_pred)
             mean_target_error = target_error.mean()
             mean_td_error = td_error.mean()
-
             if self._q_eval_mode=='max':
                 loss = torch.max(target_error, td_error).mean()
             elif self._q_eval_mode=='bmax':
                 loss = torch.max(mean_target_error, mean_td_error)
+            elif self._q_eval_mode=='adaptive':
+                loss = None  # will compute it later
             else:
                 w1, w2 = self._q_eval_mode
                 loss = w1*mean_target_error+ w2*mean_td_error
@@ -365,8 +376,26 @@ class CAC(RLAlgorithm):
         # min_qf_loss + beta * bellman_qf_loss
         # qf1_loss = gan_qf1_loss + beta * bellman_qf1_loss
         # qf2_loss = gan_qf2_loss + beta * bellman_qf2_loss
-        qf1_loss = normalized_sum(gan_qf1_loss, bellman_qf1_loss, beta1)
-        qf2_loss = normalized_sum(gan_qf2_loss, bellman_qf2_loss, beta2)
+        if self._q_eval_mode == 'adaptive':
+            w_loss = - self._log_Beta1 * (q1_target_error.detach() - self._bellman_constraint)
+            if self._use_two_qfs:
+                w_loss += - self._log_Beta2 * (q2_target_error.detach() - self._bellman_constraint)
+            self._Beta_optimizer.zero_grad()
+            w_loss.backward()
+            self._Beta_optimizer.step()
+            with torch.no_grad():
+                self._log_Beta1.clamp_(max=self._log_Beta_upper_bound)
+                self._log_Beta2.clamp_(max=self._log_Beta_upper_bound)
+            with torch.no_grad():
+                Beta1 = self._log_Beta1.exp()
+                Beta2 = self._log_Beta2.exp()
+            bellman_qf1_loss = beta1 * q1_td_error + Beta1 * q1_target_error  # logging
+            bellman_qf2_loss = beta2 * q2_td_error + Beta2 * q2_target_error
+            qf1_loss = gan_qf1_loss + bellman_qf1_loss
+            qf2_loss = gan_qf2_loss + bellman_qf2_loss
+        else:
+            qf1_loss = normalized_sum(gan_qf1_loss, bellman_qf1_loss, beta1)
+            qf2_loss = normalized_sum(gan_qf2_loss, bellman_qf2_loss, beta2)
 
         # L2 regularization on weights not bias
         if self._norm_constraint<0:
@@ -482,6 +511,9 @@ class CAC(RLAlgorithm):
                     q2_target_error=q2_target_error,
                     q2_td_error=q2_td_error,
                     )
+        if self._Beta_optimizer is not None:
+            log_info['Beta1'] = Beta1
+            log_info['Beta2'] = Beta2
 
         # # Debug
         # for n, norm in enumerate(qf1_norms):
@@ -534,6 +566,14 @@ class CAC(RLAlgorithm):
             self._log_beta1 = torch.Tensor([self._log_beta1]).to(device).requires_grad_()
             self._log_beta2 = torch.Tensor([self._log_beta2]).to(device).requires_grad_()
             self._beta_optimizer = optimizer([self._log_beta1, self._log_beta2], lr=self._beta_lr)
+
+        if self._Beta_optimizer is None:
+            self._log_Beta1 = torch.Tensor([self._log_Beta2]).to(device)
+            self._log_Beta1 = torch.Tensor([self._log_Beta2]).to(device)
+        else:
+            self._log_Beta1 = torch.Tensor([self._log_Beta1]).to(device).requires_grad_()
+            self._log_Beta2 = torch.Tensor([self._log_Beta2]).to(device).requires_grad_()
+            self._Beta_optimizer = optimizer([self._log_Beta1, self._log_Beta2], lr=self._beta_lr)
 
 
     # Return also the target policy if needed
