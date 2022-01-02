@@ -153,6 +153,7 @@ def train_func(ctxt=None,
                weigh_dist=False,  # XXX deprecated
                q_eval_loss='MSELoss',
                beta_upper_bound=1e6,
+               init_q_eval_mode='0.5_0.5', #'0.0_1.0',
                # Compute parameters
                seed=0,
                n_workers=1,  # number of workers for data collection
@@ -281,6 +282,7 @@ def train_func(ctxt=None,
             weigh_dist=weigh_dist,
             q_eval_loss=q_eval_loss,
             beta_upper_bound=beta_upper_bound,
+            init_q_eval_mode=init_q_eval_mode,
         )
 
     algo_config.update(extra_algo_config)
@@ -319,6 +321,7 @@ def run(log_root='.',
                                                   'use_two_qfs',
                                                   # 'optimizer', 'value_activation', 'fixed_alpha',
                                                   'q_eval_mode', # 'weigh_dist',
+                                                  'init_q_eval_mode',
                                                   'q_eval_loss',
                                                   'n_warmstart_steps', 'seed'])
     train_kwargs['return_mode'] = 'full'

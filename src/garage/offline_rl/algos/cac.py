@@ -136,6 +136,7 @@ class CAC(RLAlgorithm):
             weigh_dist=False,  # XXX deprecated
             q_eval_loss='MSELoss', # 'MSELoss', 'SmoothL1Loss'
             beta_upper_bound=1e6,  # for numerical stability
+            init_q_eval_mode='0.5_0.5',
             ):
 
         #############################################################################################
@@ -163,7 +164,8 @@ class CAC(RLAlgorithm):
             _q_eval_loss = self._q_eval_loss
             self._q_eval_loss = lambda *args, **kwargs : _q_eval_loss(*args, **kwargs)*2.0  # so it matches the unit in the MSE loss.
         self._q_eval_mode = [float(w) for w in q_eval_mode.split('_')] if '_' in q_eval_mode else  q_eval_mode
-
+        self._q_eval_mode_desired =  self._q_eval_mode  #bkp
+        self._init_q_eval_mode = [float(w) for w in q_eval_mode.split('_')] if '_' in init_q_eval_mode else  init_q_eval_mode
         # terminal value of of the absorbing state
         self._terminal_value = terminal_value if terminal_value is not None else lambda r, gamma: 0.
 
@@ -718,6 +720,11 @@ class CAC(RLAlgorithm):
                 if warmstart and self._n_updates_performed >=self._max_n_warmstart_steps:
                     warmstart = False  # reached the maximum updates
                     self._bellman_constraint=self._avg_bellman_error
+
+            if warmstart:
+                self._q_eval_mode = self._init_q_eval_mode
+            else:
+                self._q_eval_mode = self._q_eval_mode_desired
 
             if not warmstart and not self._cac_learning:  # self._n_updates_performed==self._n_warmstart_steps:
                 self._cac_learning = True
