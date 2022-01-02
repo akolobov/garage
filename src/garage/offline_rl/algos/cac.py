@@ -124,7 +124,7 @@ class CAC(RLAlgorithm):
             use_deterministic_evaluation=True,
             # CAC parameters
             n_warmstart_steps=20000,
-            max_n_warmstart_steps=200000,
+            max_n_warmstart_steps=200000*3,
             beta=-1.0,  # the regularization coefficient in front of the Bellman error
             n_qf_steps=1,
             norm_constraint=100,
