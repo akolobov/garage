@@ -165,7 +165,7 @@ class CAC(RLAlgorithm):
             self._q_eval_loss = lambda *args, **kwargs : _q_eval_loss(*args, **kwargs)*2.0  # so it matches the unit in the MSE loss.
         self._q_eval_mode = [float(w) for w in q_eval_mode.split('_')] if '_' in q_eval_mode else  q_eval_mode
         self._q_eval_mode_desired =  self._q_eval_mode  #bkp
-        self._init_q_eval_mode = [float(w) for w in q_eval_mode.split('_')] if '_' in init_q_eval_mode else  init_q_eval_mode
+        self._init_q_eval_mode = [float(w) for w in init_q_eval_mode.split('_')] if '_' in init_q_eval_mode else  init_q_eval_mode
         # terminal value of of the absorbing state
         self._terminal_value = terminal_value if terminal_value is not None else lambda r, gamma: 0.
 
