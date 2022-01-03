@@ -124,7 +124,7 @@ class CAC(RLAlgorithm):
             use_deterministic_evaluation=True,
             # CAC parameters
             n_warmstart_steps=20000,
-            max_n_warmstart_steps=200000*3,
+            max_n_warmstart_steps=200000,
             beta=-1.0,  # the regularization coefficient in front of the Bellman error
             n_qf_steps=1,
             norm_constraint=100,
@@ -136,7 +136,7 @@ class CAC(RLAlgorithm):
             weigh_dist=False,  # XXX deprecated
             q_eval_loss='MSELoss', # 'MSELoss', 'SmoothL1Loss'
             beta_upper_bound=1e6,  # for numerical stability
-            init_q_eval_mode='0.5_0.5',
+            init_q_eval_mode='0.0_1.0',
             ):
 
         #############################################################################################
@@ -180,14 +180,15 @@ class CAC(RLAlgorithm):
         self._avg_bellman_error = 1.  # for logging; so this works with zero warm-start
         if beta>=0:  # use fixed reg coeff
             self._log_beta1 = self._log_beta2 = torch.Tensor([np.log(beta)])
+            self._bellman_constraint = 0
             self._beta_optimizer = self._bellman_target = None
         else:
             self._bellman_constraint = -beta
-            self._init_log_beta = np.log(1.0) # i.e. beta=1
+            self._init_log_beta = 1.0 # np.log(1.0) # i.e. beta=1
             self._log_beta1 = torch.Tensor([self._init_log_beta]).requires_grad_()
             self._log_beta2 = torch.Tensor([self._init_log_beta]).requires_grad_()
             self._beta_optimizer = optimizer([self._log_beta1, self._log_beta2], lr=self._beta_lr)
-            self._log_beta_upper_bound = np.log(beta_upper_bound)  # threshold to double the norm constraint
+            self._log_beta_upper_bound = beta_upper_bound # np.log(beta_upper_bound)  # threshold to double the norm constraint
             self._cons_inc_rate = cons_inc_rate
 
         if self._q_eval_mode == 'adaptive':
@@ -364,12 +365,12 @@ class CAC(RLAlgorithm):
                 beta_loss.backward()
                 self._beta_optimizer.step()
                 with torch.no_grad():
-                    self._log_beta1.clamp_(max=self._log_beta_upper_bound)
-                    self._log_beta2.clamp_(max=self._log_beta_upper_bound)
+                    self._log_beta1.clamp_(min=0.0, max=self._log_beta_upper_bound)
+                    self._log_beta2.clamp_(min=0.0, max=self._log_beta_upper_bound)
 
         with torch.no_grad():
-            beta1 = self._log_beta1.exp()
-            beta2 = self._log_beta2.exp()
+            beta1 = self._log_beta1 #.exp()
+            beta2 = self._log_beta2 #.exp()
 
         # # # Doubling the norm constraint if beta is too large (i.e. infeasible)
         # if self._beta_optimizer is not None and beta >= self._beta_upper_bound and self._cons_inc_rate>0:

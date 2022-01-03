@@ -153,7 +153,7 @@ def train_func(ctxt=None,
                weigh_dist=False,  # XXX deprecated
                q_eval_loss='MSELoss',
                beta_upper_bound=1e6,
-               init_q_eval_mode='0.5_0.5', #'0.0_1.0',
+               init_q_eval_mode='0.0_1.0', #'0.0_1.0',
                # Compute parameters
                seed=0,
                n_workers=1,  # number of workers for data collection
