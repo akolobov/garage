@@ -179,7 +179,7 @@ class CAC(RLAlgorithm):
         # Regularization constant on the Bellman error
         self._avg_bellman_error = 1.  # for logging; so this works with zero warm-start
         if beta>=0:  # use fixed reg coeff
-            self._log_beta1 = self._log_beta2 = torch.Tensor([np.log(beta)])
+            self._log_beta1 = self._log_beta2 = torch.Tensor([beta]) # torch.Tensor([np.log(beta)])
             self._bellman_constraint = 0
             self._beta_optimizer = self._bellman_target = None
         else:
