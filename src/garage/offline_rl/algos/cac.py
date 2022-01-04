@@ -738,7 +738,8 @@ class CAC(RLAlgorithm):
                 # reset
                 self._qf1_optimizer = self._optimizer(self._qf1.parameters(),lr=self._qf_lr)
                 self._qf2_optimizer = self._optimizer(self._qf2.parameters(),lr=self._qf_lr)
-
+                self._target_qf1 = copy.deepcopy(self._qf1)
+                self._target_qf2 = copy.deepcopy(self._qf2)
 
             n_qf_steps = 1 if warmstart else self._n_qf_steps
             for i in range(n_qf_steps):
