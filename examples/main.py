@@ -136,6 +136,7 @@ def train_func(ctxt=None,
                n_grad_steps=2000,  # number of gradient updates per epoch
                steps_per_epoch=1,  # number of internal epochs steps per epoch
                n_warmstart_steps=20000,  # number of warm-up steps
+               max_n_warmstart_steps=200000,
                fixed_alpha=None,  # whether to fix the temperate parameter
                use_deterministic_evaluation=True,  # do evaluation based on the deterministic policy
                num_evaluation_episodes=5, # number of episodes to evaluate (only affect off-policy algorithms)
@@ -283,6 +284,7 @@ def train_func(ctxt=None,
             q_eval_loss=q_eval_loss,
             beta_upper_bound=beta_upper_bound,
             init_q_eval_mode=init_q_eval_mode,
+            max_n_warmstart_steps=max_n_warmstart_steps
         )
 
     algo_config.update(extra_algo_config)
