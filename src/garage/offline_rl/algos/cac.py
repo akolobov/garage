@@ -714,7 +714,8 @@ class CAC(RLAlgorithm):
         if self.replay_buffer.n_transitions_stored >= self._min_buffer_size:
 
             warmstart = self._n_updates_performed<self._n_warmstart_steps
-            if self._beta_optimizer is not None and not warmstart and not self._cac_learning: # a proposal to turn off warmstart is made
+            if self._beta_optimizer is not None and self._max_n_warmstart_steps is not None \
+                and not warmstart and not self._cac_learning: # a proposal to turn off warmstart is made
                 # for constrained version, we need to check if we need to run the warmstart longer to satisfy the constraint.
                 warmstart = self._avg_bellman_error >= self._bellman_constraint \
                              or self._n_updates_performed <= 10/(1-self._stats_avg_rate)  # time for self._avg_bellman_error to be meaningful
