@@ -137,6 +137,7 @@ class CAC(RLAlgorithm):
             q_eval_loss='MSELoss', # 'MSELoss', 'SmoothL1Loss'
             beta_upper_bound=1e6,  # for numerical stability
             init_q_eval_mode='0.0_1.0',
+            constraint_mode='td', #'td', None
             ):
 
         #############################################################################################
@@ -165,7 +166,10 @@ class CAC(RLAlgorithm):
             self._q_eval_loss = lambda *args, **kwargs : _q_eval_loss(*args, **kwargs)*2.0  # so it matches the unit in the MSE loss.
         self._q_eval_mode = [float(w) for w in q_eval_mode.split('_')] if '_' in q_eval_mode else  q_eval_mode
         self._q_eval_mode_desired =  self._q_eval_mode  #bkp
+        init_q_eval_mode = init_q_eval_mode or q_eval_mode  # for None
         self._init_q_eval_mode = [float(w) for w in init_q_eval_mode.split('_')] if '_' in init_q_eval_mode else  init_q_eval_mode
+        self._constraint_mode = constraint_mode
+
         # terminal value of of the absorbing state
         self._terminal_value = terminal_value if terminal_value is not None else lambda r, gamma: 0.
 
@@ -341,6 +345,16 @@ class CAC(RLAlgorithm):
             q2_pred_next = self._qf2(next_obs, new_next_actions).flatten()
             bellman_qf2_loss, q2_target_error, q2_td_error = compute_mixed_bellman_loss(q2_pred, q2_pred_next, q_target)
 
+        if self._constraint_mode=='td':
+            q1_constraint = q1_td_error
+            q2_constraint = q2_td_error
+        elif self._constraint_mode=='target':
+            q1_constraint = q1_target_error
+            q2_constraint = q2_target_error
+        elif self._constraint_mode is None:
+            q1_constraint = bellman_qf1_loss
+            q2_constraint = bellman_qf2_loss
+
         if not qf_update_only or not warmstart:
             # These samples will be used for the actor update too, so they need to be traced.
             new_actions_dist = self.policy(obs)[0]
@@ -358,9 +372,9 @@ class CAC(RLAlgorithm):
 
             # Autotune the regularization constant to satisfy Bellman constraint
             if self._beta_optimizer is not None:
-                beta_loss = - self._log_beta1 * (q1_td_error.detach() - self._bellman_constraint)
+                beta_loss = - self._log_beta1 * (q1_constraint.detach() - self._bellman_constraint)
                 if self._use_two_qfs:
-                    beta_loss += - self._log_beta2 * (q2_td_error.detach() - self._bellman_constraint)
+                    beta_loss += - self._log_beta2 * (q2_constraint.detach() - self._bellman_constraint)
                 self._beta_optimizer.zero_grad()
                 beta_loss.backward()
                 self._beta_optimizer.step()
@@ -463,7 +477,7 @@ class CAC(RLAlgorithm):
         # For logging
         with torch.no_grad():
             # bellman_qf_loss = torch.max(bellman_qf1_loss, bellman_qf2_loss)  # for logging
-            bellman_qf_loss = torch.max(q1_td_error, q2_td_error)  # measure the TD error
+            bellman_qf_loss = torch.max(q1_constraint, q2_constraint)  # measure the TD error
             self._avg_bellman_error = self._avg_bellman_error*self._stats_avg_rate + bellman_qf_loss*(1-self._stats_avg_rate)
             policy_grad_norm = 0
             for param in self.policy.parameters():
@@ -736,10 +750,10 @@ class CAC(RLAlgorithm):
                     self._alpha_optimizer = self._optimizer([self._log_alpha], lr=self._alpha_lr)
                 self._policy_optimizer = self._optimizer(self.policy.parameters(), lr=self._policy_lr)
                 # reset
-                self._qf1_optimizer = self._optimizer(self._qf1.parameters(),lr=self._qf_lr)
-                self._qf2_optimizer = self._optimizer(self._qf2.parameters(),lr=self._qf_lr)
-                self._target_qf1 = copy.deepcopy(self._qf1)
-                self._target_qf2 = copy.deepcopy(self._qf2)
+                # self._qf1_optimizer = self._optimizer(self._qf1.parameters(),lr=self._qf_lr)
+                # self._qf2_optimizer = self._optimizer(self._qf2.parameters(),lr=self._qf_lr)
+                # self._target_qf1 = copy.deepcopy(self._qf1)
+                # self._target_qf2 = copy.deepcopy(self._qf2)
 
             n_qf_steps = 1 if warmstart else self._n_qf_steps
             for i in range(n_qf_steps):
