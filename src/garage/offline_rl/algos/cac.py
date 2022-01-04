@@ -735,8 +735,9 @@ class CAC(RLAlgorithm):
                     self._log_alpha = torch.Tensor([self._initial_log_entropy]).requires_grad_().to(self._log_alpha.device)
                     self._alpha_optimizer = self._optimizer([self._log_alpha], lr=self._alpha_lr)
                 self._policy_optimizer = self._optimizer(self.policy.parameters(), lr=self._policy_lr)
-                # self._qf1_optimizer = self._optimizer(self._qf1.parameters(),lr=self._qf_lr)
-                # self._qf2_optimizer = self._optimizer(self._qf2.parameters(),lr=self._qf_lr)
+                # reset
+                self._qf1_optimizer = self._optimizer(self._qf1.parameters(),lr=self._qf_lr)
+                self._qf2_optimizer = self._optimizer(self._qf2.parameters(),lr=self._qf_lr)
 
 
             n_qf_steps = 1 if warmstart else self._n_qf_steps
