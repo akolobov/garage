@@ -138,6 +138,7 @@ class CAC(RLAlgorithm):
             beta_upper_bound=1e6,  # for numerical stability
             init_q_eval_mode='0.0_1.0',
             constraint_mode='td', #'td', None
+            lambd=0. # coeff for globl pessimism
             ):
 
         #############################################################################################
@@ -169,6 +170,7 @@ class CAC(RLAlgorithm):
         init_q_eval_mode = init_q_eval_mode or q_eval_mode  # for None
         self._init_q_eval_mode = [float(w) for w in init_q_eval_mode.split('_')] if '_' in init_q_eval_mode else  init_q_eval_mode
         self._constraint_mode = constraint_mode
+        self._lambd = lambd
 
         # terminal value of of the absorbing state
         self._terminal_value = terminal_value if terminal_value is not None else lambda r, gamma: 0.
@@ -365,10 +367,10 @@ class CAC(RLAlgorithm):
             dist_weight = (1-self._discount**(timesteps+1)).reshape(-1,1) if self._weigh_dist else torch.ones_like(q1_pred)
             # Compute value difference
             q1_new_actions = self._qf1(obs, new_actions.detach())
-            gan_qf1_loss = ((q1_new_actions - q1_pred)*dist_weight).mean()
+            gan_qf1_loss = ((q1_new_actions*(1+self._lambd) - q1_pred)*dist_weight).mean()
             if self._use_two_qfs:
                 q2_new_actions = self._qf2(obs, new_actions.detach())
-                gan_qf2_loss = ((q2_new_actions - q2_pred)*dist_weight).mean()
+                gan_qf2_loss = ((q2_new_actions*(1+self._lambd) - q2_pred)*dist_weight).mean()
 
             # Autotune the regularization constant to satisfy Bellman constraint
             if self._beta_optimizer is not None:

@@ -156,6 +156,7 @@ def train_func(ctxt=None,
                beta_upper_bound=1e6,
                init_q_eval_mode='0.0_1.0', #'0.0_1.0',
                constraint_mode='td', # 'td'
+               lambd=0.0,
                # Compute parameters
                seed=0,
                n_workers=1,  # number of workers for data collection
@@ -287,6 +288,7 @@ def train_func(ctxt=None,
             init_q_eval_mode=init_q_eval_mode,
             max_n_warmstart_steps=max_n_warmstart_steps,
             constraint_mode=constraint_mode,
+            lambd=lambd,
         )
 
     algo_config.update(extra_algo_config)
@@ -328,6 +330,7 @@ def run(log_root='.',
                                                   'init_q_eval_mode',
                                                   'q_eval_loss',
                                                   'constraint_mode',
+                                                  'lambd',
                                                   'n_warmstart_steps', 'seed'])
     train_kwargs['return_mode'] = 'full'
 
@@ -403,7 +406,7 @@ if __name__=='__main__':
     parser.add_argument('--q_eval_loss', type=str, default='MSELoss')
     parser.add_argument('--cons_inc_rate', type=float, default=0.0)
     parser.add_argument('--weigh_dist', type=str2bool, default=False)
-
+    parser.add_argument('--lambd', type=float, default=0.0)
 
 
     train_kwargs = vars(parser.parse_args())
