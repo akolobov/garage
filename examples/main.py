@@ -190,12 +190,16 @@ def train_func(ctxt=None,
 
     # Set the right terminal value (roughly)
     terminal_value = None
-    # if 'kitchen' in env_name:
-    #     good_indices = np.logical_not(dataset['terminals']*(dataset['rewards']!=4))
-    #     for k in dataset.keys():
-    #         dataset[k] = dataset[k][good_indices]
-    #     dataset['rewards'] -= 4
-    #     # or terminal_value = lambda r, gamma : 4/ (1-gamma)
+    if 'kitchen' in env_name:
+        # remove wrongly labeled terminal states
+        good_indices = np.logical_not(dataset['terminals']*(dataset['rewards']!=4))
+        for k in dataset.keys():
+            dataset[k] = dataset[k][good_indices]
+        dataset['rewards'] -= 4
+
+    if 'antmaze' in env_name:
+        # numerically better behaved?
+        dataset['rewards'] -= 1
 
     load_d4rl_data_as_buffer(dataset, replay_buffer)
 
