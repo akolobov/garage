@@ -323,17 +323,19 @@ class CAC(RLAlgorithm):
             target_q_values = self._target_qf1(next_obs, new_next_actions)
             if self._use_two_qfs:
                 target_q_values = torch.min(target_q_values, self._target_qf2(next_obs, new_next_actions))
-            target_q_values = torch.clip(target_q_values, min=self._Vmin, max=self._Vmax)
+            target_q_values = torch.clip(target_q_values, min=self._Vmin, max=self._Vmax)  # projection
             q_target = compute_bellman_backup(target_q_values.flatten())
 
         qf1_pred = self._qf1(obs, actions).flatten()
-        qf1_pred_next = torch.clip(self._qf1(next_obs, new_next_actions).flatten(), min=self._Vmin, max=self._Vmax)
+        # qf1_pred_next = torch.clip(self._qf1(next_obs, new_next_actions).flatten(), min=self._Vmin, max=self._Vmax)
+        qf1_pred_next = self._qf1(next_obs, new_next_actions).flatten()
         qf1_bellman_loss, qf1_target_error, qf1_td_error = compute_bellman_loss(qf1_pred, qf1_pred_next, q_target)
 
         qf2_bellman_loss = qf2_target_error = qf2_td_error = torch.Tensor([0.])
         if self._use_two_qfs:
             qf2_pred = self._qf2(obs, actions).flatten()
-            qf2_pred_next = torch.clip(self._qf2(next_obs, new_next_actions).flatten(), min=self._Vmin, max=self._Vmax)
+            # qf2_pred_next = torch.clip(self._qf2(next_obs, new_next_actions).flatten(), min=self._Vmin, max=self._Vmax)
+            qf2_pred_next = self._qf2(next_obs, new_next_actions).flatten()
             qf2_bellman_loss, qf2_target_error, qf2_td_error = compute_bellman_loss(qf2_pred, qf2_pred_next, q_target)
 
         if self._bellman_surrogate=='td':
@@ -355,12 +357,14 @@ class CAC(RLAlgorithm):
         beta_loss = gan_qf1_loss = gan_qf2_loss = 0
         if not warmstart:  # Compute beta_loss, gan_qf1_loss, gan_qf2_loss
             # Compute value difference
-            qf1_new_actions = torch.clip(self._qf1(obs, new_actions.detach()), min=self._Vmin, max=self._Vmax)
-            qf1_pred = torch.clip(qf1_pred, min=self._Vmin, max=self._Vmax)
+            # qf1_new_actions = torch.clip(self._qf1(obs, new_actions.detach()), min=self._Vmin, max=self._Vmax)
+            # qf1_pred = torch.clip(qf1_pred, min=self._Vmin, max=self._Vmax)
+            qf1_new_actions = self._qf1(obs, new_actions.detach())
             gan_qf1_loss = (qf1_new_actions*(1+self._lambd) - qf1_pred).mean()
             if self._use_two_qfs:
-                qf2_new_actions = torch.clip(self._qf2(obs, new_actions.detach()), min=self._Vmin, max=self._Vmax)
-                qf2_pred = torch.clip(qf2_pred, min=self._Vmin, max=self._Vmax)
+                # qf2_new_actions = torch.clip(self._qf2(obs, new_actions.detach()), min=self._Vmin, max=self._Vmax)
+                # qf2_pred = torch.clip(qf2_pred, min=self._Vmin, max=self._Vmax)
+                qf2_new_actions = self._qf2(obs, new_actions.detach())
                 gan_qf2_loss = (qf2_new_actions*(1+self._lambd) - qf2_pred).mean()
 
             # Autotune the regularization constant to satisfy Bellman constraint
@@ -449,6 +453,7 @@ class CAC(RLAlgorithm):
             qf1_pred_mean = qf1_pred.mean()
             qf2_pred_mean = qf2_pred.mean() if self._use_two_qfs else 0.
             q_target_mean = q_target.mean()
+            target_q_values_mean = target_q_values.mean()
             qf1_new_actions_mean = qf1_new_actions.mean() if not warmstart else 0.
             qf2_new_actions_mean = qf2_new_actions.mean() if not warmstart and self._use_two_qfs else 0.
             action_diff = torch.mean(torch.norm(samples_data['action'] - new_actions, dim=1))
@@ -491,6 +496,7 @@ class CAC(RLAlgorithm):
                     action_diff=action_diff,
                     avg_bellman_error=self._avg_bellman_error,
                     q_target_mean=q_target_mean,
+                    target_q_values_mean=target_q_values_mean,
                     qf1_target_error=qf1_target_error,
                     qf1_td_error=qf1_td_error,
                     qf2_target_error=qf2_target_error,
