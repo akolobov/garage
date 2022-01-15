@@ -174,9 +174,9 @@ def train_func(ctxt=None,
 
     # Initialize gym env
     dataset = None
+    d4rl_env = gym.make(env_name)  # d4rl env
     while dataset is None:
         try:
-            d4rl_env = gym.make(env_name)  # d4rl env
             dataset = qlearning_dataset(d4rl_env)
         except (HTTPError, OSError):
             print('Unable to download dataset. Retry.')
@@ -197,7 +197,7 @@ def train_func(ctxt=None,
             for k in dataset.keys():
                 dataset[k] = dataset[k][good_indices]
             dataset['rewards'] -= 4
-            Vmin -= -4/(1-discount)
+            Vmin -= 4/(1-discount)
             Vmax = 0
         else:
             Vmin = 0
@@ -214,7 +214,6 @@ def train_func(ctxt=None,
             Vmax = 1
 
     print("Vmin {} Vmax {}".format(Vmin, Vmax))
-
     load_d4rl_data_as_buffer(dataset, replay_buffer)
 
     # # Normalize the rewards to be in [-1, 1]
