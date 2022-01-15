@@ -135,7 +135,7 @@ def train_func(ctxt=None,
                minibatch_size=256,  # optimization/replaybuffer minibatch size
                n_grad_steps=2000,  # number of gradient updates per epoch
                steps_per_epoch=1,  # number of internal epochs steps per epoch
-               n_warmstart_steps=20000,  # number of warm-up steps
+               n_warmstart_steps=100000,  # number of warm-up steps
                max_n_warmstart_steps=200000,
                fixed_alpha=None,  # whether to fix the temperate parameter
                use_deterministic_evaluation=True,  # do evaluation based on the deterministic policy
@@ -144,19 +144,19 @@ def train_func(ctxt=None,
                lagrange_thresh=5.0,
                min_q_weight=1.0,
                # CAC parameters
-               beta=-1.0,  # weight on the Bellman error
-               n_qf_steps=1,
+               beta=1.0,  # weight on the Bellman error
+               n_qf_steps=1,  # XXX deprecated
                norm_constraint=100,
                use_two_qfs=True,  # whether to use two q function
                optimizer='Adam',
                q_eval_mode='0.5_0.5',
-               cons_inc_rate=0.0,  # XXX deprecated
-               weigh_dist=False,  # XXX deprecated
                q_eval_loss='MSELoss',
                beta_upper_bound=1e6,
-               init_q_eval_mode='0.0_1.0', #'0.0_1.0',
-               constraint_mode='td', # 'td'
-               lambd=0.0,
+               init_q_eval_mode=None, # XXX deprecated
+               bellman_surrogate='td', # 'td', 'target', None
+               lambd=0.0, # XXX deprecated
+               clip_qfs=False,
+               shift_reward=False,
                # Compute parameters
                seed=0,
                n_workers=1,  # number of workers for data collection
@@ -188,18 +188,34 @@ def train_func(ctxt=None,
     env = GymEnv(d4rl_env)
     replay_buffer = PathBuffer(capacity_in_transitions=int(replay_buffer_size))
 
-    # Set the right terminal value (roughly)
-    terminal_value = None
+    # Set Vmin and Vmax, if known
+    Vmin = max(dataset['rewards'].min()/(1-discount), d4rl.infos.REF_MIN_SCORE[env_name]) if clip_qfs else -float('inf')
+    Vmax = dataset['rewards'].max()/(1-discount)if clip_qfs else float('inf')
+
     if 'kitchen' in env_name:
         # remove wrongly labeled terminal states
-        good_indices = np.logical_not(dataset['terminals']*(dataset['rewards']!=4))
-        for k in dataset.keys():
-            dataset[k] = dataset[k][good_indices]
-        dataset['rewards'] -= 4
+        if shift_reward:
+            good_indices = np.logical_not(dataset['terminals']*(dataset['rewards']!=4))
+            for k in dataset.keys():
+                dataset[k] = dataset[k][good_indices]
+            dataset['rewards'] -= 4
+            Vmin -= -4/(1-discount)
+            Vmax = 0
+        else:
+            Vmin = 0
+            Vmax = 4/(1-discount)
 
     if 'antmaze' in env_name:
         # numerically better behaved?
-        dataset['rewards'] -= 1
+        if shift_reward:
+            dataset['rewards'] -= 1
+            Vmin -= 1/(1-discount)
+            Vmax = 0
+        else:
+            Vmin = 0
+            Vmax = 1
+
+    print("Vmin {} Vmax {}".format(Vmin, Vmax))
 
     load_d4rl_data_as_buffer(dataset, replay_buffer)
 
@@ -281,18 +297,17 @@ def train_func(ctxt=None,
             n_qf_steps=n_qf_steps,
             norm_constraint=norm_constraint,
             use_two_qfs=use_two_qfs,
-            terminal_value=terminal_value,
             n_warmstart_steps=n_warmstart_steps,
             optimizer=optimizer,
             q_eval_mode=q_eval_mode,
-            cons_inc_rate=cons_inc_rate,
-            weigh_dist=weigh_dist,
             q_eval_loss=q_eval_loss,
             beta_upper_bound=beta_upper_bound,
             init_q_eval_mode=init_q_eval_mode,
             max_n_warmstart_steps=max_n_warmstart_steps,
-            constraint_mode=constraint_mode,
+            bellman_surrogate=bellman_surrogate,
             lambd=lambd,
+            Vmin=Vmin,
+            Vmax=Vmax,
         )
 
     algo_config.update(extra_algo_config)
@@ -327,14 +342,11 @@ def run(log_root='.',
         log_dir = get_log_dir_name(train_kwargs, [
                                                   'beta', 'discount', 'norm_constraint',
                                                   'policy_lr', 'value_lr',
-                                                   # 'target_update_tau', 'n_qf_steps',
                                                   'use_two_qfs',
-                                                  # 'optimizer', 'value_activation', 'fixed_alpha',
-                                                  'q_eval_mode', # 'weigh_dist',
+                                                  'fixed_alpha',
+                                                  'q_eval_mode',
                                                   'init_q_eval_mode',
-                                                  'q_eval_loss',
-                                                  'constraint_mode',
-                                                  'lambd',
+                                                  'clip_qfs', 'shift_reward',
                                                   'n_warmstart_steps', 'seed'])
     train_kwargs['return_mode'] = 'full'
 
@@ -394,9 +406,9 @@ if __name__=='__main__':
     parser.add_argument('--force_cpu_data_collection', type=str2bool, default=True)
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--lagrange_thresh', type=float, default=5.0)
-    parser.add_argument('--n_warmstart_steps', type=int, default=20000)  # 40000
+    parser.add_argument('--n_warmstart_steps', type=int, default=100000)
     parser.add_argument('--fixed_alpha', type=float, default=None)
-    parser.add_argument('--beta', type=float, default=-1)
+    parser.add_argument('--beta', type=float, default=1)
     parser.add_argument('--n_qf_steps', type=int, default=1)
     parser.add_argument('--norm_constraint', type=float, default=100)
     parser.add_argument('--policy_lr', type=float, default=5e-6)
@@ -408,10 +420,9 @@ if __name__=='__main__':
     parser.add_argument('--value_activation', type=str, default='ReLU')
     parser.add_argument('--q_eval_mode', type=str, default='0.5_0.5')
     parser.add_argument('--q_eval_loss', type=str, default='MSELoss')
-    parser.add_argument('--cons_inc_rate', type=float, default=0.0)
-    parser.add_argument('--weigh_dist', type=str2bool, default=False)
     parser.add_argument('--lambd', type=float, default=0.0)
-
+    parser.add_argument('--clip_qfs', type=str2bool, default=True)
+    parser.add_argument('--shift_reward', type=str2bool, default=False)
 
     train_kwargs = vars(parser.parse_args())
     run(**train_kwargs)
