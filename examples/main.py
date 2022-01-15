@@ -145,13 +145,11 @@ def train_func(ctxt=None,
                min_q_weight=1.0,
                # CAC parameters
                beta=1.0,  # weight on the Bellman error
-               n_qf_steps=1,  # XXX deprecated
                norm_constraint=100,
                use_two_qfs=True,  # whether to use two q function
                optimizer='Adam',
                q_eval_mode='0.5_0.5',
                q_eval_loss='MSELoss',
-               beta_upper_bound=1e6,
                init_q_eval_mode=None, # XXX deprecated
                bellman_surrogate='td', # 'td', 'target', None
                lambd=0.0, # XXX deprecated
@@ -294,14 +292,12 @@ def train_func(ctxt=None,
     elif algo=='CAC':
         extra_algo_config = dict(
             beta=beta,
-            n_qf_steps=n_qf_steps,
             norm_constraint=norm_constraint,
             use_two_qfs=use_two_qfs,
             n_warmstart_steps=n_warmstart_steps,
             optimizer=optimizer,
             q_eval_mode=q_eval_mode,
             q_eval_loss=q_eval_loss,
-            beta_upper_bound=beta_upper_bound,
             init_q_eval_mode=init_q_eval_mode,
             max_n_warmstart_steps=max_n_warmstart_steps,
             bellman_surrogate=bellman_surrogate,
@@ -339,8 +335,7 @@ def run(log_root='.',
     if train_kwargs['algo']=='CQL':
         log_dir = get_log_dir_name(train_kwargs, ['policy_lr', 'value_lr', 'lagrange_thresh', 'min_q_weight', 'seed'])
     if train_kwargs['algo']=='CAC':
-        log_dir = get_log_dir_name(train_kwargs, [
-                                                  'beta', 'discount', 'norm_constraint',
+        log_dir = get_log_dir_name(train_kwargs, ['beta', 'discount', 'norm_constraint',
                                                   'policy_lr', 'value_lr',
                                                   'use_two_qfs',
                                                   'fixed_alpha',
@@ -409,7 +404,6 @@ if __name__=='__main__':
     parser.add_argument('--n_warmstart_steps', type=int, default=100000)
     parser.add_argument('--fixed_alpha', type=float, default=None)
     parser.add_argument('--beta', type=float, default=1)
-    parser.add_argument('--n_qf_steps', type=int, default=1)
     parser.add_argument('--norm_constraint', type=float, default=100)
     parser.add_argument('--policy_lr', type=float, default=5e-6)
     parser.add_argument('--value_lr', type=float, default=5e-4)
