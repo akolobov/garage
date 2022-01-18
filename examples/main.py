@@ -16,6 +16,43 @@ from garage.offline_rl.rl_utils import train_agent, get_sampler, setup_gpu, get_
 from garage.offline_rl.trainer import Trainer
 
 
+class PRB(PathBuffer):
+
+
+    def add_path(self, path):
+        path_len = self._get_path_length(path)
+        path['priority'] = np.ones((path_len,1))*10
+        super().add_path(path)
+
+    def sample_transitions(self, batch_size):
+        ## A naive version but too slow.
+        # priority = self._buffer['priority'][:self._transitions_stored].flatten()
+        # p = priority/priority.sum()
+        # idx = np.random.choice(self._transitions_stored, size=batch_size, p=p)
+        # samples = {key: buf_arr[idx] for key, buf_arr in self._buffer.items()}
+        # samples['_idx'] = idx
+        # samples['_w'] = 1/p[idx]/len(p)
+
+        idx0 = np.random.randint(self._transitions_stored, size=min(self._transitions_stored, batch_size*100))
+        priority = self._buffer['priority'][idx0].flatten()
+        p = priority/priority.sum()
+        idx_ = np.random.choice(len(priority), size=batch_size, p=p)
+        idx = idx0[idx_]
+
+        samples = {key: buf_arr[idx] for key, buf_arr in self._buffer.items()}
+        samples['_idx'] = idx
+        # samples['_w'] = 1/p[idx_]/len(p)
+        is_weights = 1/p[idx_]/len(p)
+        samples['_w'] = is_weights/is_weights.sum()*len(p)  # normalized IS
+        # multiply with extra len(p) because it takes mean in the code later on
+        return samples
+
+    def update_priority(self, td_error, idx):
+        # self._buffer['priority'][idx] = td_error[:,None]
+        self._buffer['priority'][idx] = (td_error[:,None]+1e-3)**0.5
+
+
+
 def qlearning_dataset(env, dataset=None, terminate_on_end=False, **kwargs):
     # Add timeout and timestep keys
     """
@@ -155,6 +192,7 @@ def train_func(ctxt=None,
                lambd=0.0, # XXX deprecated
                clip_qfs=False,
                shift_reward=False,
+               use_prb=False,
                # Compute parameters
                seed=0,
                n_workers=1,  # number of workers for data collection
@@ -184,7 +222,11 @@ def train_func(ctxt=None,
 
     # Initialize replay buffer and gymenv
     env = GymEnv(d4rl_env)
-    replay_buffer = PathBuffer(capacity_in_transitions=int(replay_buffer_size))
+
+    if use_prb:
+        replay_buffer = PRB(capacity_in_transitions=int(replay_buffer_size))
+    else:
+        replay_buffer = PathBuffer(capacity_in_transitions=int(replay_buffer_size))
 
     # Set Vmin and Vmax, if known
     Vmin = max(dataset['rewards'].min()/(1-discount), d4rl.infos.REF_MIN_SCORE[env_name]) if clip_qfs else -float('inf')
@@ -340,7 +382,7 @@ def run(log_root='.',
                                                   'fixed_alpha',
                                                   'q_eval_mode',
                                                   'init_q_eval_mode',
-                                                  'clip_qfs', 'shift_reward',
+                                                  'clip_qfs', 'shift_reward', 'use_prb',
                                                   'n_warmstart_steps', 'seed'])
     train_kwargs['return_mode'] = 'full'
 
@@ -416,6 +458,7 @@ if __name__=='__main__':
     parser.add_argument('--lambd', type=float, default=0.0)
     parser.add_argument('--clip_qfs', type=str2bool, default=True)
     parser.add_argument('--shift_reward', type=str2bool, default=False)
+    parser.add_argument('--use_prb', type=str2bool, default=False)
 
     train_kwargs = vars(parser.parse_args())
     run(**train_kwargs)

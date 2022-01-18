@@ -175,6 +175,7 @@ class CAC(RLAlgorithm):
 
         # Regularization constant on the Bellman error
         self._avg_bellman_error = 1.  # for logging; so this works with zero warm-start
+        self._avg_terminal_td_error = 1
         if beta>=0:
             # Regularization mode
             self._beta1 = self._beta2 = torch.Tensor([beta]) # torch.Tensor([np.log(beta)])
@@ -293,6 +294,7 @@ class CAC(RLAlgorithm):
         terminals =  samples_data['terminal'].flatten()
         timeouts =  samples_data['timeout'].flatten()
         timesteps =  samples_data['timestep'].flatten()
+        is_weights = samples_data['_w'].flatten() if '_w' in samples_data else 1.0
 
         ##### Update Critic #####
         def compute_bellman_backup(q_pred_next):
@@ -303,18 +305,12 @@ class CAC(RLAlgorithm):
             assert q_pred.shape == q_pred_next.shape == q_target.shape
 
             target_error = self._q_eval_loss(q_pred, q_target)
-            mean_target_error = target_error.mean()
             q_target_pred = compute_bellman_backup(q_pred_next)
             td_error = self._q_eval_loss(q_pred, q_target_pred)
-            mean_td_error = td_error.mean()
+            w1, w2 = self._q_eval_mode
+            bellman_loss = w1*target_error+ w2*td_error
 
-            if self._q_eval_mode=='max':
-                loss = torch.max(target_error, td_error).mean()
-            else:
-                w1, w2 = self._q_eval_mode
-                loss = w1*mean_target_error+ w2*mean_td_error
-
-            return loss, mean_target_error, mean_td_error
+            return bellman_loss, target_error, td_error
 
         ## Compute Bellman error
         with torch.no_grad():
@@ -329,24 +325,31 @@ class CAC(RLAlgorithm):
         qf1_pred = self._qf1(obs, actions).flatten()
         # qf1_pred_next = torch.clip(self._qf1(next_obs, new_next_actions).flatten(), min=self._Vmin, max=self._Vmax)
         qf1_pred_next = self._qf1(next_obs, new_next_actions).flatten()
-        qf1_bellman_loss, qf1_target_error, qf1_td_error = compute_bellman_loss(qf1_pred, qf1_pred_next, q_target)
+        qf1_bellman_losses, qf1_target_errors, qf1_td_errors = compute_bellman_loss(qf1_pred, qf1_pred_next, q_target)
+        qf1_bellman_loss = (qf1_bellman_losses*is_weights).mean()
 
         qf2_bellman_loss = qf2_target_error = qf2_td_error = torch.Tensor([0.])
         if self._use_two_qfs:
             qf2_pred = self._qf2(obs, actions).flatten()
             # qf2_pred_next = torch.clip(self._qf2(next_obs, new_next_actions).flatten(), min=self._Vmin, max=self._Vmax)
             qf2_pred_next = self._qf2(next_obs, new_next_actions).flatten()
-            qf2_bellman_loss, qf2_target_error, qf2_td_error = compute_bellman_loss(qf2_pred, qf2_pred_next, q_target)
+            qf2_bellman_losses, qf2_target_errors, qf2_td_errors = compute_bellman_loss(qf2_pred, qf2_pred_next, q_target)
+            qf2_bellman_loss = (qf2_bellman_losses*is_weights).mean()
 
         if self._bellman_surrogate=='td':
-            qf1_bellman_surrogate = qf1_td_error
-            qf2_bellman_surrogate = qf2_td_error
+            qf1_bellman_surrogate = qf1_td_errors.mean()
+            qf2_bellman_surrogate = qf2_td_errors.mean()
         elif self._bellman_surrogate=='target':
-            qf1_bellman_surrogate = qf1_target_error
-            qf2_bellman_surrogate = qf2_target_error
+            qf1_bellman_surrogate = qf1_target_errors.mean()
+            qf2_bellman_surrogate = qf2_target_errors.mean()
         elif self._bellman_surrogate is None:
             qf1_bellman_surrogate = qf1_bellman_loss
             qf2_bellman_surrogate = qf2_bellman_loss
+
+        # Update priority of sampling
+        if hasattr(self.replay_buffer, 'update_priority'):
+            self.replay_buffer.update_priority((qf1_bellman_losses+qf2_bellman_losses).detach().numpy()/2,
+                                                samples_data['_idx'].numpy().astype(int))
 
         # Compute GAN error
         if not qf_update_only or not warmstart:
@@ -360,12 +363,12 @@ class CAC(RLAlgorithm):
             # qf1_new_actions = torch.clip(self._qf1(obs, new_actions.detach()), min=self._Vmin, max=self._Vmax)
             # qf1_pred = torch.clip(qf1_pred, min=self._Vmin, max=self._Vmax)
             qf1_new_actions = self._qf1(obs, new_actions.detach())
-            gan_qf1_loss = (qf1_new_actions*(1+self._lambd) - qf1_pred).mean()
+            gan_qf1_loss = ((qf1_new_actions*(1+self._lambd) - qf1_pred)*is_weights).mean()
             if self._use_two_qfs:
                 # qf2_new_actions = torch.clip(self._qf2(obs, new_actions.detach()), min=self._Vmin, max=self._Vmax)
                 # qf2_pred = torch.clip(qf2_pred, min=self._Vmin, max=self._Vmax)
                 qf2_new_actions = self._qf2(obs, new_actions.detach())
-                gan_qf2_loss = (qf2_new_actions*(1+self._lambd) - qf2_pred).mean()
+                gan_qf2_loss = ((qf2_new_actions*(1+self._lambd) - qf2_pred)*is_weights).mean()
 
             # Autotune the regularization constant to satisfy Bellman constraint
             if self._beta_optimizer is not None:
@@ -415,7 +418,7 @@ class CAC(RLAlgorithm):
 
         # Compuate entropy
         log_pi_new_actions = new_actions_dist.log_prob(value=new_actions, pre_tanh_value=new_actions_pre_tanh)
-        policy_entropy = -log_pi_new_actions.mean()
+        policy_entropy = -(log_pi_new_actions*is_weights).mean()
 
         alpha_loss = 0
         if self._use_automatic_entropy_tuning:  # it comes first; seems to work also when put after policy update
@@ -431,13 +434,13 @@ class CAC(RLAlgorithm):
         if warmstart: # BC warmstart
             policy_log_prob = new_actions_dist.log_prob(samples_data['action'])
             # policy_loss = - policy_log_prob.mean() - alpha * policy_entropy
-            policy_loss = normalized_sum(-policy_log_prob.mean(), -policy_entropy, alpha)
+            policy_loss = normalized_sum(-(policy_log_prob*is_weights).mean(), -policy_entropy, alpha)
         else:
             # Compute performance difference lower bound
             min_q_new_actions = self._qf1(obs, new_actions)
             # if self._use_two_qfs:
             #     min_q_new_actions = torch.min(min_q_new_actions, self._qf2(obs, new_actions))
-            lower_bound = min_q_new_actions.mean()
+            lower_bound = (min_q_new_actions*is_weights).mean()
             # policy_loss = - lower_bound - alpha * policy_kl
             policy_loss = normalized_sum(-lower_bound, -policy_entropy, alpha)
 
@@ -450,6 +453,10 @@ class CAC(RLAlgorithm):
             bellman_surrogate = torch.max(qf1_bellman_surrogate, qf2_bellman_surrogate)  # measure the TD error
             self._avg_bellman_error = self._avg_bellman_error*self._stats_avg_rate + bellman_surrogate*(1-self._stats_avg_rate)
 
+            if terminals.sum()>0:
+                terminal_td_error = (qf1_td_errors * terminals).sum() / terminals.sum()
+                self._avg_terminal_td_error = self._avg_terminal_td_error*self._stats_avg_rate + terminal_td_error*(1-self._stats_avg_rate)
+
             qf1_pred_mean = qf1_pred.mean()
             qf2_pred_mean = qf2_pred.mean() if self._use_two_qfs else 0.
             q_target_mean = q_target.mean()
@@ -457,7 +464,6 @@ class CAC(RLAlgorithm):
             qf1_new_actions_mean = qf1_new_actions.mean() if not warmstart else 0.
             qf2_new_actions_mean = qf2_new_actions.mean() if not warmstart and self._use_two_qfs else 0.
             action_diff = torch.mean(torch.norm(samples_data['action'] - new_actions, dim=1))
-
 
             # # Debug
             # policy_grad_norm = 0
@@ -497,10 +503,12 @@ class CAC(RLAlgorithm):
                     avg_bellman_error=self._avg_bellman_error,
                     q_target_mean=q_target_mean,
                     target_q_values_mean=target_q_values_mean,
-                    qf1_target_error=qf1_target_error,
-                    qf1_td_error=qf1_td_error,
-                    qf2_target_error=qf2_target_error,
-                    qf2_td_error=qf2_td_error,
+                    #
+                    qf1_target_error=qf1_target_errors.mean(),
+                    qf1_td_error=qf1_td_errors.mean(),
+                    qf2_target_error=qf2_target_errors.mean(),
+                    qf2_td_error=qf2_td_errors.mean(),
+                    avg_terminal_td_error=self._avg_terminal_td_error,
                     )
         if self._beta_optimizer is not None:  # extra logging
             log_info['bellman_constraint'] = self._bellman_constraint

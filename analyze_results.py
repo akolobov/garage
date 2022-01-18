@@ -51,7 +51,8 @@ ORDER = \
 
 
 
-FILTER = {'init_q_eval_mode': '0.5_0.5'}
+FILTER = {} # {'init_q_eval_mode': '0.5_0.5'}
+
 
 HPS = ['beta']
 n_warmstart_epochs = 100
@@ -102,13 +103,16 @@ def analyze(log_dir,
             if key not in info:
                 info[key] = {}
 
-            append_attr(info[key], 'Evaluation/AverageReturn', csv_path)
-            append_attr(info[key], 'Algorithm/bellman_qf1_loss', csv_path)
-            append_attr(info[key], 'Algorithm/bellman_qf2_loss', csv_path)
-            append_attr(info[key], 'Algorithm/lower_bound', csv_path)
-            append_attr(info[key], 'Algorithm/avg_bellman_error', csv_path)
+            try:
+                append_attr(info[key], 'Evaluation/AverageReturn', csv_path)
+                append_attr(info[key], 'Algorithm/bellman_qf1_loss', csv_path)
+                append_attr(info[key], 'Algorithm/bellman_qf2_loss', csv_path)
+                append_attr(info[key], 'Algorithm/lower_bound', csv_path)
+                append_attr(info[key], 'Algorithm/avg_bellman_error', csv_path)
+                append_attr(info[key], 'Evaluation/TerminationRate', csv_path)
+            except FileNotFoundError:
+                print('File not found for '+exp_name+key) #+csv_path)
 
-            append_attr(info[key], 'Evaluation/TerminationRate', csv_path)
 
 
 
@@ -119,14 +123,14 @@ def analyze(log_dir,
                 scores = info[key]['Evaluation/AverageReturn']
 
             for i, (score, error) in enumerate(zip(scores, info[key]['Algorithm/avg_bellman_error'])):
-                score = score[n_warmstart_epochs:]  # exclude the warmup phase
-                error = error[n_warmstart_epochs:]  # exclude the warmup phase
+                score = score[n_warmstart_epochs-1:]  # exclude the warmup phase
+                error = error[n_warmstart_epochs-1:]  # exclude the warmup phase
                 scores[i] = score
 
             if stop_rule=='last':
                 info[key]['score'] = np.mean([ x[-1] for x in scores ])
             if stop_rule=='best':
-                info[key]['score'] = np.mean([ np.max(x[0:-1:eval_freq]) for x in scores])
+                info[key]['score'] = np.mean([ np.max(x[-1::-eval_freq]) for x in scores])
             if stop_rule=='average':
                 info[key]['score'] = np.mean([ np.mean(x) for x in scores])
 
@@ -154,19 +158,11 @@ def analyze(log_dir,
             key = keys[0]
             print(round(exp_scores[key][0], 1))
 
-    # import pdb; pdb.set_trace()
 
 
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--log_dir',  type=str)
+    parser.add_argument('--stop_rule',  type=str, default='best')
     analyze(**vars(parser.parse_args()))
-
-
-# parser.add_argument('-e', '--env_name',  type=str, default='hopper-medium-v0')
-# parser.add_argument('-s', '--score', type=float, default=100)
-# env_name = args['env_name']
-# max_score = infos.REF_MAX_SCORE[env_name]
-# min_score = infos.REF_MIN_SCORE[env_name]
-# original_score = (max_score - min_score)*args['score']/100 + min_score
