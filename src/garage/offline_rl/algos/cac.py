@@ -139,6 +139,7 @@ class CAC(RLAlgorithm):
             lambd=0., # coeff for global pessimism
             Vmin=-float('inf'), # min value of Q
             Vmax=float('inf'), # max value of Q
+            init_observations=None,
             ):
 
         #############################################################################################
@@ -162,6 +163,7 @@ class CAC(RLAlgorithm):
         self._q_eval_mode_desired =  self._q_eval_mode  # backup
         self._q_eval_loss = eval('torch.nn.'+q_eval_loss)(reduction='none')
         self._lambd = lambd  # global pessimism coefficient
+        self._init_observations = torch.Tensor(init_observations)
 
         # MDP setup
         self._Vmin = Vmin
@@ -359,16 +361,27 @@ class CAC(RLAlgorithm):
 
         beta_loss = gan_qf1_loss = gan_qf2_loss = 0
         if not warmstart:  # Compute beta_loss, gan_qf1_loss, gan_qf2_loss
-            # Compute value difference
-            # qf1_new_actions = torch.clip(self._qf1(obs, new_actions.detach()), min=self._Vmin, max=self._Vmax)
-            # qf1_pred = torch.clip(qf1_pred, min=self._Vmin, max=self._Vmax)
-            qf1_new_actions = self._qf1(obs, new_actions.detach())
-            gan_qf1_loss = ((qf1_new_actions*(1+self._lambd) - qf1_pred)*is_weights).mean()
-            if self._use_two_qfs:
-                # qf2_new_actions = torch.clip(self._qf2(obs, new_actions.detach()), min=self._Vmin, max=self._Vmax)
-                # qf2_pred = torch.clip(qf2_pred, min=self._Vmin, max=self._Vmax)
-                qf2_new_actions = self._qf2(obs, new_actions.detach())
-                gan_qf2_loss = ((qf2_new_actions*(1+self._lambd) - qf2_pred)*is_weights).mean()
+            if self._init_observations is None:
+                # Compute value difference
+                # qf1_new_actions = torch.clip(self._qf1(obs, new_actions.detach()), min=self._Vmin, max=self._Vmax)
+                # qf1_pred = torch.clip(qf1_pred, min=self._Vmin, max=self._Vmax)
+                qf1_new_actions = self._qf1(obs, new_actions.detach())
+                gan_qf1_loss = ((qf1_new_actions*(1+self._lambd) - qf1_pred)*is_weights).mean()
+                if self._use_two_qfs:
+                    # qf2_new_actions = torch.clip(self._qf2(obs, new_actions.detach()), min=self._Vmin, max=self._Vmax)
+                    # qf2_pred = torch.clip(qf2_pred, min=self._Vmin, max=self._Vmax)
+                    qf2_new_actions = self._qf2(obs, new_actions.detach())
+                    gan_qf2_loss = ((qf2_new_actions*(1+self._lambd) - qf2_pred)*is_weights).mean()
+            else: # initial state pessimism
+                idx_ = np.random.choice(len(self._init_observations), self._buffer_batch_size)
+                init_observations = self._init_observations[idx_]
+                init_actions_dist = self.policy(init_observations)[0]
+                init_actions_pre_tanh, init_actions = init_actions_dist.rsample_with_pre_tanh_value()
+                qf1_new_actions = self._qf1(init_observations, init_actions.detach())
+                gan_qf1_loss = qf1_new_actions.mean()
+                if self._use_two_qfs:
+                    qf2_new_actions = self._qf2(init_observations, init_actions.detach())
+                    gan_qf2_loss = qf2_new_actions.mean()
 
             # Autotune the regularization constant to satisfy Bellman constraint
             if self._beta_optimizer is not None:

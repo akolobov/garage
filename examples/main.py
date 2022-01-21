@@ -193,6 +193,7 @@ def train_func(ctxt=None,
                clip_qfs=False,
                shift_reward=False,
                use_prb=False,
+               init_pess=False,
                # Compute parameters
                seed=0,
                n_workers=1,  # number of workers for data collection
@@ -219,6 +220,14 @@ def train_func(ctxt=None,
         except (HTTPError, OSError):
             print('Unable to download dataset. Retry.')
             pass
+
+    if init_pess:
+        dataset_raw = d4rl_env.get_dataset()
+        ends = dataset_raw['terminals']+ dataset_raw['timeouts']
+        starts = np.concatenate([[True], ends[:-1]])
+        init_observations = dataset_raw['observations'][starts]
+    else:
+        init_observations = None
 
     # Initialize replay buffer and gymenv
     env = GymEnv(d4rl_env)
@@ -345,6 +354,7 @@ def train_func(ctxt=None,
             lambd=lambd,
             Vmin=Vmin,
             Vmax=Vmax,
+            init_observations=init_observations,
         )
 
     algo_config.update(extra_algo_config)
@@ -456,9 +466,10 @@ if __name__=='__main__':
     parser.add_argument('--q_eval_mode', type=str, default='0.5_0.5')
     parser.add_argument('--q_eval_loss', type=str, default='MSELoss')
     parser.add_argument('--lambd', type=float, default=0.0)
-    parser.add_argument('--clip_qfs', type=str2bool, default=True)
+    parser.add_argument('--clip_qfs', type=str2bool, default=False)
     parser.add_argument('--shift_reward', type=str2bool, default=False)
     parser.add_argument('--use_prb', type=str2bool, default=False)
+    parser.add_argument('--init_pess', type=str2bool, default=False)
 
     train_kwargs = vars(parser.parse_args())
     run(**train_kwargs)
