@@ -163,7 +163,7 @@ class CAC(RLAlgorithm):
         self._q_eval_mode_desired =  self._q_eval_mode  # backup
         self._q_eval_loss = eval('torch.nn.'+q_eval_loss)(reduction='none')
         self._lambd = lambd  # global pessimism coefficient
-        self._init_observations = torch.Tensor(init_observations)
+        self._init_observations = torch.Tensor(init_observations) if init_observations is not None else init_observations
 
         # MDP setup
         self._Vmin = Vmin
