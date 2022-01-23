@@ -11,7 +11,7 @@ from garage.torch.policies import TanhGaussianMLPPolicy
 from garage.torch.q_functions import ContinuousMLPQFunction
 
 
-from garage.offline_rl.algos import CAC
+from garage.offline_rl.algos import CAC, CQL
 from garage.offline_rl.rl_utils import train_agent, get_sampler, setup_gpu, get_algo, get_log_dir_name, load_algo
 from garage.offline_rl.trainer import Trainer
 
